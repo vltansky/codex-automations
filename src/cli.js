@@ -27,7 +27,7 @@ export async function main(argv) {
     case "export":
       return print(await exportAutomation(required(args[0], "id"), flags.output || `${args[0]}.codex-automation`), json);
     case "share":
-      return shareCommand(required(args[0], "id"), flags, json);
+      return shareCommand(args[0], flags, json);
     case "add":
       return addCommand(required(args[0], "source"), flags, json);
     case "inspect":
@@ -176,7 +176,7 @@ function help() {
 Usage:
   codex-automation list [--json]
   codex-automation show <id> [--json]
-  codex-automation share <id> [--repo <owner/repo>] [--path <dir>] [--dry-run] [--yes] [--json]
+  codex-automation share [id] [--repo <owner/repo>] [--path <dir>] [--dry-run] [--yes] [--json]
   codex-automation add <source> [--list] [--automation <id>] [--cwd <path>] [--id <id>] [--dry-run] [--replace] [--activate] [--json]
   codex-automation export <id> [--output <dir>] [--json]
   codex-automation inspect <dir> [--json]

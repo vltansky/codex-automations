@@ -56,6 +56,7 @@ codex-automation add owner/repo --automation morning-pr-radar --cwd ~/Projects/v
 Share one of your local automations to a GitHub collection:
 
 ```bash
+codex-automation share
 codex-automation share morning-pr-radar --repo vltansky/codex-automations --dry-run
 codex-automation share morning-pr-radar --repo vltansky/codex-automations
 ```
@@ -85,7 +86,7 @@ codex-automation install ./morning-pr-radar.codex-automation --cwd ~/Projects/vl
 ```text
 codex-automation list [--json]
 codex-automation show <id> [--json]
-codex-automation share <id> [--repo <owner/repo>] [--path <dir>] [--dry-run] [--yes] [--json]
+codex-automation share [id] [--repo <owner/repo>] [--path <dir>] [--dry-run] [--yes] [--json]
 codex-automation add <source> [--list] [--automation <id>] [--cwd <path>] [--id <id>] [--dry-run] [--replace] [--activate] [--json]
 codex-automation export <id> [--output <dir>] [--json]
 codex-automation inspect <dir> [--json]
@@ -128,11 +129,20 @@ codex-automation add owner/repo --automation morning-pr-radar --cwd ~/Projects/v
 
 ## Sharing Automations
 
-`share` publishes one of your installed Codex automations into a GitHub collection repository.
+`share` publishes one of your installed Codex automations into a GitHub collection repository. Run it with no arguments for the guided flow:
 
 ```bash
-codex-automation share morning-pr-radar
+codex-automation share
 ```
+
+The interactive flow:
+
+1. Lists installed automations.
+2. Asks which automation to share.
+3. Suggests `<github-user>/codex-automations`.
+4. Asks for the collection path, defaulting to `automations`.
+5. Shows the destination and install command.
+6. Confirms before creating a repo, committing, or pushing.
 
 By default, it uses your `gh` login and targets:
 

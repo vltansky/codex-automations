@@ -200,6 +200,45 @@ test("share commits and pushes into an existing collection repo", async () => {
   assert.equal(calls.some(([command, args]) => command === "git" && args[0] === "push"), true);
 });
 
+test("share can run as a guided interactive flow", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  await writeInstalledSample(env);
+  const calls = [];
+  const questions = [];
+  const answers = ["1", "", "", "y"];
+  const output = [];
+
+  const result = await shareAutomation(undefined, {
+    exec: async (command, args, options = {}) => {
+      calls.push([command, args, options.cwd]);
+      if (command === "gh" && args[0] === "api") return { stdout: "vltansky\n", stderr: "" };
+      if (command === "gh" && args[0] === "repo" && args[1] === "view") throw new Error("not found");
+      if (command === "git" && args[0] === "init") {
+        await fs.mkdir(options.cwd, { recursive: true });
+        return { stdout: "", stderr: "" };
+      }
+      if (command === "git" && args[0] === "status") return { stdout: "A  automations/morning-pr-radar/automation.toml\n", stderr: "" };
+      return { stdout: "", stderr: "" };
+    }
+  }, env, {
+    ask: async (question) => {
+      questions.push(question);
+      return answers.shift();
+    },
+    write: (message) => output.push(message)
+  });
+
+  assert.equal(result.repo, "vltansky/codex-automations");
+  assert.equal(result.packagePath, "automations/morning-pr-radar");
+  assert.equal(questions[0], "Automation to share [1-1]");
+  assert.equal(questions[1], "GitHub collection repo [vltansky/codex-automations]");
+  assert.equal(questions[2], "Collection path [automations]");
+  assert.equal(questions[3], "Publish this automation? [y/N]");
+  assert.equal(output.join("").includes("Share summary:"), true);
+  assert.equal(calls.some(([command, args]) => command === "gh" && args.includes("create")), true);
+});
+
 async function writeInstalledSample(env) {
   const sourceDir = path.join(env.CODEX_HOME, "automations", "morning-pr-radar");
   await fs.mkdir(sourceDir, { recursive: true });
