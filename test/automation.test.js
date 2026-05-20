@@ -12,6 +12,7 @@ import {
   readPackage,
   validateAutomation
 } from "../src/automation.js";
+import { shareAutomation } from "../src/share.js";
 import { discoverPackages, parseSource, selectPackage } from "../src/source.js";
 import { parseAutomationToml, stringifyAutomationToml } from "../src/toml.js";
 
@@ -142,3 +143,65 @@ test("discovers and selects packages from a collection source", async () => {
   assert.deepEqual(packages.map((pkg) => pkg.id), ["morning-pr-radar"]);
   assert.equal(selectPackage(packages, "morning-pr-radar").path, packageDir);
 });
+
+test("share dry-run plans a public collection repo without pushing", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  await writeInstalledSample(env);
+  const calls = [];
+
+  const result = await shareAutomation("morning-pr-radar", {
+    repo: "vltansky/codex-automations",
+    dryRun: true,
+    exec: async (command, args, options = {}) => {
+      calls.push([command, args, options.cwd]);
+      if (command === "gh" && args[0] === "api") return { stdout: "vltansky\n", stderr: "" };
+      if (command === "gh" && args[0] === "repo" && args[1] === "view") throw new Error("not found");
+      if (command === "git" && args[0] === "init") {
+        await fs.mkdir(options.cwd, { recursive: true });
+        return { stdout: "", stderr: "" };
+      }
+      return { stdout: "", stderr: "" };
+    }
+  }, env);
+
+  assert.equal(result.dryRun, true);
+  assert.equal(result.wouldCreateRepo, true);
+  assert.equal(result.packagePath, "automations/morning-pr-radar");
+  assert.equal(result.installCommand, "codex-automation add vltansky/codex-automations --automation morning-pr-radar --cwd <workspace>");
+  assert.equal(calls.some(([command, args]) => command === "gh" && args.includes("create")), false);
+  assert.equal(calls.some(([command, args]) => command === "git" && args[0] === "push"), false);
+});
+
+test("share commits and pushes into an existing collection repo", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  await writeInstalledSample(env);
+  const calls = [];
+
+  const result = await shareAutomation("morning-pr-radar", {
+    repo: "vltansky/codex-automations",
+    yes: true,
+    exec: async (command, args, options = {}) => {
+      calls.push([command, args, options.cwd]);
+      if (command === "gh" && args[0] === "api") return { stdout: "vltansky\n", stderr: "" };
+      if (command === "gh" && args[0] === "repo" && args[1] === "view") return { stdout: '{"nameWithOwner":"vltansky/codex-automations"}', stderr: "" };
+      if (command === "gh" && args[0] === "repo" && args[1] === "clone") {
+        await fs.mkdir(args[3], { recursive: true });
+        return { stdout: "", stderr: "" };
+      }
+      if (command === "git" && args[0] === "status") return { stdout: "A  automations/morning-pr-radar/automation.toml\n", stderr: "" };
+      return { stdout: "", stderr: "" };
+    }
+  }, env);
+
+  assert.equal(result.changed, true);
+  assert.equal(calls.some(([command, args]) => command === "git" && args[0] === "commit"), true);
+  assert.equal(calls.some(([command, args]) => command === "git" && args[0] === "push"), true);
+});
+
+async function writeInstalledSample(env) {
+  const sourceDir = path.join(env.CODEX_HOME, "automations", "morning-pr-radar");
+  await fs.mkdir(sourceDir, { recursive: true });
+  await fs.writeFile(path.join(sourceDir, "automation.toml"), sampleToml);
+}

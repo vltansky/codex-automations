@@ -12,6 +12,7 @@ import {
   validateManifest
 } from "./automation.js";
 import { fail } from "./errors.js";
+import { shareAutomation } from "./share.js";
 import { discoverPackages, resolveSource, selectPackage } from "./source.js";
 
 export async function main(argv) {
@@ -25,6 +26,8 @@ export async function main(argv) {
       return print(await readInstalled(required(args[0], "id")).then((x) => x.automation), json);
     case "export":
       return print(await exportAutomation(required(args[0], "id"), flags.output || `${args[0]}.codex-automation`), json);
+    case "share":
+      return shareCommand(required(args[0], "id"), flags, json);
     case "add":
       return addCommand(required(args[0], "source"), flags, json);
     case "inspect":
@@ -43,6 +46,17 @@ export async function main(argv) {
     default:
       fail("unknown_command", `Unknown command: ${command}`);
   }
+}
+
+async function shareCommand(id, flags, json) {
+  const result = await shareAutomation(id, {
+    repo: flags.repo,
+    path: flags.path,
+    message: flags.message,
+    yes: Boolean(flags.yes),
+    dryRun: Boolean(flags["dry-run"])
+  });
+  return print(result, json);
 }
 
 async function addCommand(source, flags, json) {
@@ -129,7 +143,7 @@ function parseArgs(argv) {
       continue;
     }
     const key = item.slice(2);
-    if (["json", "dry-run", "replace", "activate", "keep-memory", "list"].includes(key)) {
+    if (["json", "dry-run", "replace", "activate", "keep-memory", "list", "yes"].includes(key)) {
       flags[key] = true;
     } else {
       flags[key] = required(argv[index + 1], key);
@@ -162,6 +176,7 @@ function help() {
 Usage:
   codex-automation list [--json]
   codex-automation show <id> [--json]
+  codex-automation share <id> [--repo <owner/repo>] [--path <dir>] [--dry-run] [--yes] [--json]
   codex-automation add <source> [--list] [--automation <id>] [--cwd <path>] [--id <id>] [--dry-run] [--replace] [--activate] [--json]
   codex-automation export <id> [--output <dir>] [--json]
   codex-automation inspect <dir> [--json]

@@ -53,6 +53,13 @@ codex-automation add owner/repo --automation morning-pr-radar --cwd ~/Projects/v
 codex-automation add owner/repo --automation morning-pr-radar --cwd ~/Projects/vlad
 ```
 
+Share one of your local automations to a GitHub collection:
+
+```bash
+codex-automation share morning-pr-radar --repo vltansky/codex-automations --dry-run
+codex-automation share morning-pr-radar --repo vltansky/codex-automations
+```
+
 Install from a direct GitHub path:
 
 ```bash
@@ -78,6 +85,7 @@ codex-automation install ./morning-pr-radar.codex-automation --cwd ~/Projects/vl
 ```text
 codex-automation list [--json]
 codex-automation show <id> [--json]
+codex-automation share <id> [--repo <owner/repo>] [--path <dir>] [--dry-run] [--yes] [--json]
 codex-automation add <source> [--list] [--automation <id>] [--cwd <path>] [--id <id>] [--dry-run] [--replace] [--activate] [--json]
 codex-automation export <id> [--output <dir>] [--json]
 codex-automation inspect <dir> [--json]
@@ -116,6 +124,54 @@ If a source contains multiple automations, choose one with `--automation`:
 
 ```bash
 codex-automation add owner/repo --automation morning-pr-radar --cwd ~/Projects/vlad
+```
+
+## Sharing Automations
+
+`share` publishes one of your installed Codex automations into a GitHub collection repository.
+
+```bash
+codex-automation share morning-pr-radar
+```
+
+By default, it uses your `gh` login and targets:
+
+```text
+<github-user>/codex-automations
+```
+
+For example:
+
+```bash
+codex-automation share morning-pr-radar --repo vltansky/codex-automations
+```
+
+If the target repo does not exist, `share` can create it as a public GitHub repository. It then exports the automation into:
+
+```text
+automations/<id>/
+  codex-automation.json
+  automation.toml
+  README.md
+```
+
+It also updates the collection README so others can install with:
+
+```bash
+codex-automation add vltansky/codex-automations --list
+codex-automation add vltansky/codex-automations --automation morning-pr-radar --cwd <workspace>
+```
+
+Use `--dry-run` to preview without creating a repo, committing, or pushing:
+
+```bash
+codex-automation share morning-pr-radar --repo vltansky/codex-automations --dry-run --json
+```
+
+Use `--yes` for non-interactive sharing:
+
+```bash
+codex-automation share morning-pr-radar --repo vltansky/codex-automations --yes
 ```
 
 ## Package Format
