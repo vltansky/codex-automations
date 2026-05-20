@@ -14,11 +14,34 @@ npm install -g codex-automation
 
 ```bash
 codex-automation list
+codex-automation add vltansky/codex-automations --list
+codex-automation add https://github.com/vltansky/codex-automations/tree/main/automations/morning-pr-radar --cwd ~/Projects/vlad --dry-run
+codex-automation add vltansky/codex-automations --automation morning-pr-radar --cwd ~/Projects/vlad
 codex-automation export morning-pr-radar --output ./morning-pr-radar.codex-automation
 codex-automation inspect ./morning-pr-radar.codex-automation
 codex-automation install ./morning-pr-radar.codex-automation --cwd ~/Projects/vlad --dry-run
 codex-automation install ./morning-pr-radar.codex-automation --cwd ~/Projects/vlad --id morning-pr-radar-copy
 ```
+
+## Source formats
+
+`add` follows the same broad shape as tools like `npx skills add`:
+
+```bash
+# GitHub shorthand
+codex-automation add owner/repo
+
+# Full GitHub URL
+codex-automation add https://github.com/owner/repo
+
+# Direct path in a repo
+codex-automation add https://github.com/owner/repo/tree/main/automations/my-automation
+
+# Local path
+codex-automation add ./my-automation.codex-automation
+```
+
+Use `--list` to inspect available automations in a source without installing.
 
 ## Package format
 

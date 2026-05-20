@@ -12,6 +12,7 @@ import {
   readPackage,
   validateAutomation
 } from "../src/automation.js";
+import { discoverPackages, parseSource, selectPackage } from "../src/source.js";
 import { parseAutomationToml, stringifyAutomationToml } from "../src/toml.js";
 
 const sampleToml = `version = 1
@@ -106,4 +107,38 @@ test("dry-run install still detects id conflicts", async () => {
     () => installPackage(pkg, { id: "morning-pr-radar", cwd: temp, dryRun: true }, env),
     /Automation already exists/
   );
+});
+
+test("parses GitHub-like add sources", () => {
+  assert.deepEqual(parseSource("vercel-labs/skills"), {
+    type: "github",
+    owner: "vercel-labs",
+    repo: "skills",
+    url: "https://github.com/vercel-labs/skills.git",
+    ref: undefined,
+    subpath: ""
+  });
+  assert.deepEqual(parseSource("https://github.com/vltansky/codex-automations/tree/main/automations/radar"), {
+    type: "github",
+    owner: "vltansky",
+    repo: "codex-automations",
+    url: "https://github.com/vltansky/codex-automations.git",
+    ref: "main",
+    subpath: "automations/radar"
+  });
+});
+
+test("discovers and selects packages from a collection source", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  const sourceDir = path.join(env.CODEX_HOME, "automations", "morning-pr-radar");
+  await fs.mkdir(sourceDir, { recursive: true });
+  await fs.writeFile(path.join(sourceDir, "automation.toml"), sampleToml);
+
+  const packageDir = path.join(temp, "repo", "automations", "morning-pr-radar");
+  await exportAutomation("morning-pr-radar", packageDir, env);
+
+  const packages = await discoverPackages(path.join(temp, "repo"));
+  assert.deepEqual(packages.map((pkg) => pkg.id), ["morning-pr-radar"]);
+  assert.equal(selectPackage(packages, "morning-pr-radar").path, packageDir);
 });

@@ -12,6 +12,7 @@ import {
   validateManifest
 } from "./automation.js";
 import { fail } from "./errors.js";
+import { discoverPackages, resolveSource, selectPackage } from "./source.js";
 
 export async function main(argv) {
   const { command, args, flags } = parseArgs(argv);
@@ -24,6 +25,8 @@ export async function main(argv) {
       return print(await readInstalled(required(args[0], "id")).then((x) => x.automation), json);
     case "export":
       return print(await exportAutomation(required(args[0], "id"), flags.output || `${args[0]}.codex-automation`), json);
+    case "add":
+      return addCommand(required(args[0], "source"), flags, json);
     case "inspect":
       return inspectCommand(required(args[0], "package"), json);
     case "install":
@@ -39,6 +42,35 @@ export async function main(argv) {
       return help();
     default:
       fail("unknown_command", `Unknown command: ${command}`);
+  }
+}
+
+async function addCommand(source, flags, json) {
+  const resolved = await resolveSource(source);
+  try {
+    const packages = await discoverPackages(resolved.root);
+    if (flags.list) {
+      return print(packages.map((pkg) => ({
+        id: pkg.id,
+        title: pkg.title,
+        name: pkg.name,
+        path: pkg.path
+      })), json);
+    }
+
+    const selected = selectPackage(packages, flags.automation);
+    const pkg = await readPackage(selected.path);
+    const result = await installPackage(pkg, {
+      id: flags.id,
+      cwd: flags.cwd,
+      replace: Boolean(flags.replace),
+      dryRun: Boolean(flags["dry-run"]),
+      activate: Boolean(flags.activate)
+    });
+    if (!result.ok) process.exitCode = 1;
+    return print({ ...result, source, selected: selected.id }, json);
+  } finally {
+    await resolved.cleanup();
   }
 }
 
@@ -97,7 +129,7 @@ function parseArgs(argv) {
       continue;
     }
     const key = item.slice(2);
-    if (["json", "dry-run", "replace", "activate", "keep-memory"].includes(key)) {
+    if (["json", "dry-run", "replace", "activate", "keep-memory", "list"].includes(key)) {
       flags[key] = true;
     } else {
       flags[key] = required(argv[index + 1], key);
@@ -130,12 +162,19 @@ function help() {
 Usage:
   codex-automation list [--json]
   codex-automation show <id> [--json]
+  codex-automation add <source> [--list] [--automation <id>] [--cwd <path>] [--id <id>] [--dry-run] [--replace] [--activate] [--json]
   codex-automation export <id> [--output <dir>] [--json]
   codex-automation inspect <dir> [--json]
   codex-automation validate <dir> [--json]
   codex-automation install <dir> --cwd <path> [--id <id>] [--dry-run] [--replace] [--activate] [--json]
   codex-automation diff <id> <dir>
   codex-automation uninstall <id> [--keep-memory] [--json]
+
+Sources:
+  owner/repo
+  https://github.com/owner/repo
+  https://github.com/owner/repo/tree/main/path/to/package-or-collection
+  ./local-package-or-collection
 
 Environment:
   CODEX_HOME defaults to ${path.join("~", ".codex")}
