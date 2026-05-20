@@ -129,6 +129,15 @@ test("parses GitHub-like add sources", () => {
   });
 });
 
+test("parses local add sources with home expansion", () => {
+  assert.deepEqual(parseSource("./automations"), {
+    type: "local",
+    path: "./automations"
+  });
+  assert.equal(parseSource("~/codex-automations").type, "local");
+  assert.equal(parseSource("~/codex-automations").path, path.join(os.homedir(), "codex-automations"));
+});
+
 test("discovers and selects packages from a collection source", async () => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
   const env = { CODEX_HOME: path.join(temp, "codex-home") };
@@ -142,6 +151,22 @@ test("discovers and selects packages from a collection source", async () => {
   const packages = await discoverPackages(path.join(temp, "repo"));
   assert.deepEqual(packages.map((pkg) => pkg.id), ["morning-pr-radar"]);
   assert.equal(selectPackage(packages, "morning-pr-radar").path, packageDir);
+});
+
+test("selectPackage rejects ambiguous collections until automation is specified", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  await writeInstalledSample(env, "morning-pr-radar", "Morning PR Radar");
+  await writeInstalledSample(env, "weekly-release-notes", "Weekly Release Notes");
+
+  await exportAutomation("morning-pr-radar", path.join(temp, "repo", "automations", "morning-pr-radar"), env);
+  await exportAutomation("weekly-release-notes", path.join(temp, "repo", "automations", "weekly-release-notes"), env);
+
+  const packages = await discoverPackages(path.join(temp, "repo"));
+  assert.deepEqual(packages.map((pkg) => pkg.id), ["morning-pr-radar", "weekly-release-notes"]);
+  assert.throws(() => selectPackage(packages), /Multiple packages found/);
+  assert.equal(selectPackage(packages, "Weekly Release Notes").id, "weekly-release-notes");
+  assert.throws(() => selectPackage(packages, "missing"), /Automation not found/);
 });
 
 test("share dry-run plans a public collection repo without pushing", async () => {
@@ -239,8 +264,53 @@ test("share can run as a guided interactive flow", async () => {
   assert.equal(calls.some(([command, args]) => command === "gh" && args.includes("create")), true);
 });
 
-async function writeInstalledSample(env) {
-  const sourceDir = path.join(env.CODEX_HOME, "automations", "morning-pr-radar");
+test("share interactive flow rejects invalid automation selection", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  await writeInstalledSample(env);
+
+  await assert.rejects(
+    () => shareAutomation(undefined, {
+      exec: async (command, args) => {
+        if (command === "gh" && args[0] === "api") return { stdout: "vltansky\n", stderr: "" };
+        return { stdout: "", stderr: "" };
+      }
+    }, env, {
+      ask: async () => "99",
+      write: () => {}
+    }),
+    /Invalid automation selection/
+  );
+});
+
+test("share cancellation stops before export and remote writes", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  await writeInstalledSample(env);
+  const calls = [];
+
+  await assert.rejects(
+    () => shareAutomation("morning-pr-radar", {
+      repo: "vltansky/codex-automations",
+      exec: async (command, args) => {
+        calls.push([command, args]);
+        if (command === "gh" && args[0] === "api") return { stdout: "vltansky\n", stderr: "" };
+        if (command === "gh" && args[0] === "repo" && args[1] === "view") throw new Error("not found");
+        return { stdout: "", stderr: "" };
+      }
+    }, env, {
+      ask: async () => "n",
+      write: () => {}
+    }),
+    /Share cancelled/
+  );
+
+  assert.equal(calls.some(([command, args]) => command === "git" && args[0] === "init"), false);
+  assert.equal(calls.some(([command, args]) => command === "gh" && args.includes("create")), false);
+});
+
+async function writeInstalledSample(env, id = "morning-pr-radar", name = "Morning PR Radar") {
+  const sourceDir = path.join(env.CODEX_HOME, "automations", id);
   await fs.mkdir(sourceDir, { recursive: true });
-  await fs.writeFile(path.join(sourceDir, "automation.toml"), sampleToml);
+  await fs.writeFile(path.join(sourceDir, "automation.toml"), sampleToml.replace('id = "morning-pr-radar"', `id = "${id}"`).replace('name = "Morning PR Radar"', `name = "${name}"`));
 }
