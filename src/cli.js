@@ -76,7 +76,7 @@ async function installCommand(packagePath, flags, json) {
     dryRun: Boolean(flags["dry-run"]),
     activate: Boolean(flags.activate)
   };
-  const result = options.dryRun ? prepareInstall(pkg, options) : await installPackage(pkg, options);
+  const result = await installPackage(pkg, options);
   if (!result.ok) process.exitCode = 1;
   return print(result, json);
 }

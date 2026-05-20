@@ -90,3 +90,20 @@ test("install requires workspace mapping for portable cwds", async () => {
 
   assert.throws(() => prepareInstall(pkg, {}, env), /Package requires --cwd/);
 });
+
+test("dry-run install still detects id conflicts", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  const sourceDir = path.join(env.CODEX_HOME, "automations", "morning-pr-radar");
+  await fs.mkdir(sourceDir, { recursive: true });
+  await fs.writeFile(path.join(sourceDir, "automation.toml"), sampleToml);
+
+  const packageDir = path.join(temp, "morning-pr-radar.codex-automation");
+  await exportAutomation("morning-pr-radar", packageDir, env);
+  const pkg = await readPackage(packageDir);
+
+  await assert.rejects(
+    () => installPackage(pkg, { id: "morning-pr-radar", cwd: temp, dryRun: true }, env),
+    /Automation already exists/
+  );
+});
