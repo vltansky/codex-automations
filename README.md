@@ -287,6 +287,27 @@ npm run build
 
 `npm run build` currently performs an npm pack dry-run against the public npm registry.
 
+## Publishing
+
+Publishing is handled by GitHub Actions so you do not need to publish from your local machine.
+
+One-time setup:
+
+1. Create an npm automation token with publish access.
+2. Add it to the GitHub repository as `NPM_TOKEN`.
+3. Run the `Publish to npm` workflow from the Actions tab.
+
+You can run a dry-run first by choosing `dry_run: true`.
+
+To publish from a tag:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The publish workflow runs `npm ci`, `npm test`, `npm run lint`, and `npm run build` before `npm publish --access public --provenance`.
+
 ## Current Limitations
 
 - GitHub support uses shallow `git clone`; it does not use the GitHub API.
