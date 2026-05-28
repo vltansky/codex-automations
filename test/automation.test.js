@@ -15,6 +15,7 @@ import {
 import { shareAutomation } from "../src/share.js";
 import { discoverPackages, parseSource, selectPackage } from "../src/source.js";
 import { parseAutomationToml, stringifyAutomationToml } from "../src/toml.js";
+import { main } from "../src/cli.js";
 
 const sampleToml = `version = 1
 id = "morning-pr-radar"
@@ -40,6 +41,20 @@ test("parses and stringifies Codex automation TOML", () => {
 
   const roundTrip = parseAutomationToml(stringifyAutomationToml(parsed));
   assert.deepEqual(roundTrip, parsed);
+});
+
+test("global --help prints help instead of requiring a value", async () => {
+  const originalLog = console.log;
+  const lines = [];
+  console.log = (message) => lines.push(message);
+  try {
+    await main(["--help"]);
+  } finally {
+    console.log = originalLog;
+  }
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /codex-automation/);
+  assert.match(lines[0], /Usage:/);
 });
 
 test("validates installed automation shape", () => {

@@ -19,6 +19,8 @@ export async function main(argv) {
   const { command, args, flags } = parseArgs(argv);
   const json = Boolean(flags.json);
 
+  if (flags.help) return help();
+
   switch (command) {
     case "list":
       return print(await listAutomations(), json);
@@ -143,7 +145,7 @@ function parseArgs(argv) {
       continue;
     }
     const key = item.slice(2);
-    if (["json", "dry-run", "replace", "activate", "keep-memory", "list", "yes"].includes(key)) {
+    if (["json", "dry-run", "replace", "activate", "keep-memory", "list", "yes", "help"].includes(key)) {
       flags[key] = true;
     } else {
       flags[key] = required(argv[index + 1], key);
