@@ -176,16 +176,16 @@ function help() {
   console.log(`codex-automation
 
 Usage:
-  codex-automation list [--json]
-  codex-automation show <id> [--json]
-  codex-automation share [id] [--repo <owner/repo>] [--path <dir>] [--dry-run] [--yes] [--json]
-  codex-automation add <source> [--list] [--automation <id>] [--cwd <path>] [--id <id>] [--dry-run] [--replace] [--activate] [--json]
-  codex-automation export <id> [--output <dir>] [--json]
-  codex-automation inspect <dir> [--json]
-  codex-automation validate <dir> [--json]
-  codex-automation install <dir> --cwd <path> [--id <id>] [--dry-run] [--replace] [--activate] [--json]
-  codex-automation diff <id> <dir>
-  codex-automation uninstall <id> [--keep-memory] [--json]
+  npx -y codex-automation list [--json]
+  npx -y codex-automation show <id> [--json]
+  npx -y codex-automation share [id] [--repo <owner/repo>] [--path <dir>] [--dry-run] [--yes] [--json]
+  npx -y codex-automation add <source> [--list] [--automation <id>] [--cwd <path>] [--id <id>] [--dry-run] [--replace] [--activate] [--json]
+  npx -y codex-automation export <id> [--output <dir>] [--json]
+  npx -y codex-automation inspect <dir> [--json]
+  npx -y codex-automation validate <dir> [--json]
+  npx -y codex-automation install <dir> --cwd <path> [--id <id>] [--dry-run] [--replace] [--activate] [--json]
+  npx -y codex-automation diff <id> <dir>
+  npx -y codex-automation uninstall <id> [--keep-memory] [--json]
 
 Sources:
   owner/repo

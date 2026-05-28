@@ -208,7 +208,7 @@ test("share dry-run plans a public collection repo without pushing", async () =>
   assert.equal(result.dryRun, true);
   assert.equal(result.wouldCreateRepo, true);
   assert.equal(result.packagePath, "automations/morning-pr-radar");
-  assert.equal(result.installCommand, "codex-automation add vltansky/codex-automations --automation morning-pr-radar --cwd <workspace>");
+  assert.equal(result.installCommand, "npx -y codex-automation add vltansky/codex-automations --automation morning-pr-radar --cwd <workspace>");
   assert.equal(calls.some(([command, args]) => command === "gh" && args.includes("create")), false);
   assert.equal(calls.some(([command, args]) => command === "git" && args[0] === "push"), false);
 });
