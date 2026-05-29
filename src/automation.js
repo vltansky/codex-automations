@@ -90,6 +90,13 @@ export function validateAutomation(automation, { portable = false } = {}) {
   if (automation.kind === "heartbeat") {
     warnings.push({ code: "heartbeat_template_only", message: "Heartbeat automations are thread-bound; install with care." });
   }
+  if (!portable) {
+    for (const key of ["created_at", "updated_at"]) {
+      if (typeof automation[key] !== "number") {
+        errors.push({ code: "missing_timestamp", message: `Installed automation must include numeric ${key}` });
+      }
+    }
+  }
   if (automation.rrule && !/(^RRULE:|^FREQ=)/.test(automation.rrule)) {
     errors.push({ code: "invalid_rrule", message: "rrule must start with RRULE: or FREQ=" });
   }
@@ -177,11 +184,14 @@ export function prepareInstall(pkg, options = {}, env = process.env) {
 
   const id = options.id || (options.name ? slugifyName(options.name) : undefined) || pkg.manifest.install?.suggestedId || pkg.automation.id;
   const target = automationPath(id, env);
+  const now = Date.now();
   const automation = {
     ...pkg.automation,
     id,
     name: options.name || pkg.automation.name,
-    status: options.activate ? (pkg.automation.status || "ACTIVE") : "PAUSED"
+    status: options.activate ? (pkg.automation.status || "ACTIVE") : "PAUSED",
+    created_at: typeof pkg.automation.created_at === "number" ? pkg.automation.created_at : now,
+    updated_at: now
   };
   const warnings = [...manifestValidation.warnings, ...automationValidation.warnings];
 

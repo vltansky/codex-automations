@@ -116,6 +116,8 @@ test("export creates portable package and install defaults to paused", async () 
   const plan = prepareInstall(pkg, { id: "radar-copy", cwd: path.join(temp, "workspace"), dryRun: true }, env);
   assert.equal(plan.ok, true);
   assert.equal(plan.automation.status, "PAUSED");
+  assert.equal(typeof plan.automation.created_at, "number");
+  assert.equal(typeof plan.automation.updated_at, "number");
   assert.deepEqual(plan.automation.cwds, [path.join(temp, "workspace")]);
 
   const result = await installPackage(pkg, { id: "radar-copy", cwd: path.join(temp, "workspace") }, env);
@@ -124,6 +126,8 @@ test("export creates portable package and install defaults to paused", async () 
   const installed = await readInstalled("radar-copy", env);
   assert.equal(installed.automation.id, "radar-copy");
   assert.equal(installed.automation.status, "PAUSED");
+  assert.equal(typeof installed.automation.created_at, "number");
+  assert.equal(typeof installed.automation.updated_at, "number");
   assert.deepEqual(installed.automation.cwds, [path.join(temp, "workspace")]);
 
   const listed = await listAutomations(env);
