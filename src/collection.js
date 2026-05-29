@@ -1,5 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { createInterface } from "node:readline/promises";
+import { upsertCollection } from "./config.js";
+import { fail } from "./errors.js";
 import { discoverPackages } from "./source.js";
 
 export async function writeCollectionReadme(repoDir, ownerRepo = "owner/codex-automations") {
@@ -49,6 +52,29 @@ export async function initCollection(targetDir, options = {}) {
   };
 }
 
+export async function initConnectedCollection(options = {}, env = process.env, io = {}) {
+  const name = options.name || await promptWithDefault("Collection name", "personal", io, options);
+  const repo = options.repo || await promptWithDefault("GitHub repo", "owner/codex-automations", io, options);
+  const collectionPath = options.path || await promptWithDefault("Collection path", "automations", io, options);
+  const publishMode = options.publishMode || await promptWithDefault("Publish mode (push/pr)", "push", io, options);
+  if (!["push", "pr"].includes(publishMode)) fail("invalid_publish_mode", "Publish mode must be push or pr");
+  const branch = options.branch || "main";
+  const makeDefault = options.makeDefault ?? options.default ?? await promptBoolean("Make this the default collection?", true, io, options);
+
+  const collection = await upsertCollection(name, {
+    repo,
+    path: collectionPath,
+    branch,
+    publishMode
+  }, { makeDefault }, env);
+
+  return {
+    ok: true,
+    collection,
+    defaultCollection: makeDefault ? name : undefined
+  };
+}
+
 async function writeValidateWorkflow(root) {
   const workflowDir = path.join(root, ".github", "workflows");
   await fs.mkdir(workflowDir, { recursive: true });
@@ -73,4 +99,32 @@ jobs:
 
 function escapeCell(value) {
   return String(value).replace(/\|/g, "\\|").replace(/\n/g, " ");
+}
+
+async function promptWithDefault(label, defaultValue, io, options) {
+  if (options.yes) return defaultValue;
+  const answer = await ask(`${label} [${defaultValue}]`, io);
+  return answer.trim() || defaultValue;
+}
+
+async function promptBoolean(label, defaultValue, io, options) {
+  if (options.yes) return defaultValue;
+  const suffix = defaultValue ? "Y/n" : "y/N";
+  const answer = (await ask(`${label} [${suffix}]`, io)).trim();
+  if (!answer) return defaultValue;
+  return /^y(es)?$/i.test(answer);
+}
+
+async function ask(question, io) {
+  if (io.ask) return io.ask(question);
+  if (!process.stdin.isTTY) fail("confirmation_required", "Pass --yes for non-interactive usage");
+  const rl = createInterface({
+    input: io.input || process.stdin,
+    output: io.output || process.stdout
+  });
+  try {
+    return await rl.question(`${question} `);
+  } finally {
+    rl.close();
+  }
 }

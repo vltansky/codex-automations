@@ -6,6 +6,7 @@ import { createInterface } from "node:readline/promises";
 import { promisify } from "node:util";
 import { exportAutomation, listAutomations, readPackage } from "./automation.js";
 import { writeCollectionReadme } from "./collection.js";
+import { resolveCollection } from "./config.js";
 import { fail } from "./errors.js";
 
 const execFileAsync = promisify(execFile);
@@ -14,11 +15,15 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
   const exec = options.exec || run;
   const login = await getGithubLogin(exec);
   const selectedId = id || await promptForAutomation(env, io);
+  const collection = options.collection || !options.repo ? await resolveCollection(options.collection, env) : undefined;
   const defaultRepo = `${login}/codex-automations`;
-  const ownerRepo = options.repo || await promptWithDefault("GitHub collection repo", defaultRepo, io, options);
+  const ownerRepo = options.repo || collection?.repo || await promptWithDefault("GitHub collection repo", defaultRepo, io, options);
   assertOwnerRepo(ownerRepo);
 
-  const collectionPath = options.path || await promptWithDefault("Collection path", "automations", io, options);
+  const collectionPath = options.path || collection?.path || await promptWithDefault("Collection path", "automations", io, options);
+  const branch = collection?.branch || "main";
+  const publishMode = options.publishMode || collection?.publishMode || "push";
+  if (!["push", "pr"].includes(publishMode)) fail("invalid_publish_mode", "Publish mode must be push or pr");
   const packagePath = `${collectionPath.replace(/^\/|\/$/g, "")}/${selectedId}`;
   const repoExists = await githubRepoExists(exec, ownerRepo);
   const repoUrl = `https://github.com/${ownerRepo}`;
@@ -29,6 +34,7 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
     ownerRepo,
     packagePath,
     repoExists,
+    publishMode,
     installCommand,
     io
   });
@@ -60,7 +66,9 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
         wouldCreateRepo: !repoExists,
         packagePath,
         repoUrl,
-        installCommand
+        installCommand,
+        publishMode,
+        collection: collection?.name
       };
     }
 
@@ -76,15 +84,38 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
       ]);
     }
 
+    const publishBranch = publishMode === "pr" ? `add/${selectedId}` : branch;
+    if (publishMode === "pr") {
+      await exec("git", ["checkout", "-b", publishBranch], { cwd: repoDir });
+    }
+
     await exec("git", ["add", "README.md", packagePath], { cwd: repoDir });
     const status = (await exec("git", ["status", "--porcelain"], { cwd: repoDir })).stdout.trim();
     if (!status) {
-      return { ok: true, repo: ownerRepo, repoUrl, packagePath, changed: false, installCommand };
+      return { ok: true, repo: ownerRepo, repoUrl, packagePath, changed: false, installCommand, publishMode, collection: collection?.name };
     }
 
     const message = options.message || `Add ${selectedId} Codex automation`;
     await exec("git", ["commit", "-m", message], { cwd: repoDir });
-    await exec("git", ["push", "-u", "origin", "main"], { cwd: repoDir });
+    if (publishMode === "pr") {
+      await exec("git", ["push", "-u", "origin", publishBranch], { cwd: repoDir });
+      await exec("gh", [
+        "pr",
+        "create",
+        "--repo",
+        ownerRepo,
+        "--base",
+        branch,
+        "--head",
+        publishBranch,
+        "--title",
+        message,
+        "--body",
+        `Install with:\n\n\`\`\`bash\n${installCommand}\n\`\`\``
+      ], { cwd: repoDir });
+    } else {
+      await exec("git", ["push", "-u", "origin", branch], { cwd: repoDir });
+    }
 
     return {
       ok: true,
@@ -92,7 +123,9 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
       repoUrl,
       packagePath,
       changed: true,
-      installCommand
+      installCommand,
+      publishMode,
+      collection: collection?.name
     };
   } finally {
     if (!options.keepTemp) await fs.rm(temp, { recursive: true, force: true });
@@ -154,11 +187,12 @@ async function promptWithDefault(label, defaultValue, io, options) {
   return answer.trim() || defaultValue;
 }
 
-async function confirmShare({ id, ownerRepo, packagePath, repoExists, installCommand, io }) {
+async function confirmShare({ id, ownerRepo, packagePath, repoExists, publishMode, installCommand, io }) {
   write(io, "\nShare summary:\n");
   write(io, `  Automation: ${id}\n`);
   write(io, `  Repository: ${ownerRepo}${repoExists ? "" : " (will be created public)"}\n`);
   write(io, `  Package: ${packagePath}\n`);
+  write(io, `  Publish mode: ${publishMode}\n`);
   write(io, `  Install: ${installCommand}\n\n`);
 
   const answer = await ask("Publish this automation? [y/N]", io);

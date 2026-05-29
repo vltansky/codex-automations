@@ -11,7 +11,14 @@ import {
   validateAutomation,
   validateManifest
 } from "./automation.js";
-import { initCollection } from "./collection.js";
+import { initCollection, initConnectedCollection } from "./collection.js";
+import {
+  listCollections,
+  readConfig,
+  removeCollection,
+  setDefaultCollection,
+  upsertCollection
+} from "./config.js";
 import { fail } from "./errors.js";
 import { shareAutomation } from "./share.js";
 import { discoverPackages, resolveSource, selectPackages } from "./source.js";
@@ -34,7 +41,9 @@ export async function main(argv) {
     case "add":
       return addCommand(required(args[0], "source"), flags, json);
     case "init":
-      return print(await initCollection(args[0] || ".", { repo: flags.repo }), json);
+      return initCommand(args, flags, json);
+    case "collections":
+      return collectionsCommand(args, flags, json);
     case "inspect":
       return inspectCommand(required(args[0], "package"), json);
     case "install":
@@ -56,12 +65,52 @@ export async function main(argv) {
 async function shareCommand(id, flags, json) {
   const result = await shareAutomation(id, {
     repo: flags.repo,
+    collection: flags.collection,
     path: flags.path,
+    publishMode: flags["publish-mode"],
     message: flags.message,
     yes: Boolean(flags.yes),
     dryRun: Boolean(flags["dry-run"])
   });
   return print(result, json);
+}
+
+async function initCommand(args, flags, json) {
+  if (flags.local) {
+    return print(await initCollection(args[0] || ".", { repo: flags.repo }), json);
+  }
+  return print(await initConnectedCollection({
+    name: flags.name || args[0],
+    repo: flags.repo,
+    path: flags.path,
+    branch: flags.branch,
+    publishMode: flags["publish-mode"],
+    makeDefault: flags.default ? true : undefined,
+    yes: Boolean(flags.yes)
+  }), json);
+}
+
+async function collectionsCommand(args, flags, json) {
+  const subcommand = args[0] || "list";
+  switch (subcommand) {
+    case "list":
+    case "ls":
+      return print(listCollections(await readConfig()), json);
+    case "add":
+      return print(await upsertCollection(required(args[1], "name"), {
+        repo: required(flags.repo, "repo"),
+        path: flags.path,
+        branch: flags.branch,
+        publishMode: flags["publish-mode"]
+      }, { makeDefault: Boolean(flags.default) }), json);
+    case "default":
+      return print(await setDefaultCollection(required(args[1], "name")), json);
+    case "remove":
+    case "rm":
+      return print(await removeCollection(required(args[1], "name")), json);
+    default:
+      fail("unknown_subcommand", `Unknown collections command: ${subcommand}`);
+  }
 }
 
 async function addCommand(source, flags, json) {
@@ -165,7 +214,7 @@ function parseArgs(argv) {
       continue;
     }
     const key = item.slice(2);
-    if (["json", "dry-run", "replace", "activate", "keep-memory", "list", "yes", "help", "all", "diff", "view"].includes(key)) {
+    if (["json", "dry-run", "replace", "activate", "keep-memory", "list", "yes", "help", "all", "diff", "view", "local", "default"].includes(key)) {
       flags[key] = true;
     } else if (key === "automation") {
       const value = required(argv[index + 1], key);
@@ -193,6 +242,7 @@ function print(value, json) {
     for (const row of value) {
       if ("status" in row || "kind" in row) console.log(`${row.id}\t${row.status}\t${row.kind}\t${row.name}`);
       else if ("title" in row) console.log(`${row.id}\t${row.title}\t${row.path || ""}`);
+      else if ("repo" in row) console.log(`${row.default ? "*" : " "}\t${row.name}\t${row.repo}\t${row.path}\t${row.publishMode}`);
       else console.log(JSON.stringify(row));
     }
     return;
@@ -238,9 +288,14 @@ function help() {
 Usage:
   npx -y codex-automation list [--json]
   npx -y codex-automation show <id> [--json]
-  npx -y codex-automation share [id] [--repo <owner/repo>] [--path <dir>] [--dry-run] [--yes] [--json]
+  npx -y codex-automation share [id] [--collection <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--dry-run] [--yes] [--json]
   npx -y codex-automation add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--id <id>] [--dry-run] [--diff] [--view] [--replace] [--activate] [--json]
-  npx -y codex-automation init [dir] [--repo <owner/repo>] [--json]
+  npx -y codex-automation init [name] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--default] [--yes] [--json]
+  npx -y codex-automation init --local [dir] [--repo <owner/repo>] [--json]
+  npx -y codex-automation collections [list] [--json]
+  npx -y codex-automation collections add <name> --repo <owner/repo> [--path <dir>] [--publish-mode <push|pr>] [--default] [--json]
+  npx -y codex-automation collections default <name> [--json]
+  npx -y codex-automation collections remove <name> [--json]
   npx -y codex-automation export <id> [--output <dir>] [--json]
   npx -y codex-automation inspect <dir> [--json]
   npx -y codex-automation validate <dir> [--json]

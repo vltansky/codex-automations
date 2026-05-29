@@ -50,9 +50,10 @@ npx -y codex-automation add owner/repo --automation morning-pr-radar
 Share one of your local automations to a GitHub collection:
 
 ```bash
+npx -y codex-automation init personal --repo vltansky/codex-automations --publish-mode push --default --yes
 npx -y codex-automation share
-npx -y codex-automation share morning-pr-radar --repo vltansky/codex-automations --dry-run
-npx -y codex-automation share morning-pr-radar --repo vltansky/codex-automations
+npx -y codex-automation share morning-pr-radar --dry-run
+npx -y codex-automation share morning-pr-radar
 ```
 
 Install from a direct GitHub path:
@@ -61,10 +62,10 @@ Install from a direct GitHub path:
 npx -y codex-automation add https://github.com/owner/repo/tree/main/automations/morning-pr-radar
 ```
 
-Create a new collection repo locally:
+Connect a shared collection that publishes through pull requests:
 
 ```bash
-npx -y codex-automation init ./codex-automations --repo owner/codex-automations
+npx -y codex-automation init team --repo org/codex-automations --publish-mode pr --default --yes
 ```
 
 Export one of your local automations:
@@ -86,9 +87,14 @@ npx -y codex-automation install ./morning-pr-radar.codex-automation --id morning
 ```text
 npx -y codex-automation list [--json]
 npx -y codex-automation show <id> [--json]
-npx -y codex-automation share [id] [--repo <owner/repo>] [--path <dir>] [--dry-run] [--yes] [--json]
+npx -y codex-automation share [id] [--collection <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--dry-run] [--yes] [--json]
 npx -y codex-automation add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--id <id>] [--dry-run] [--diff] [--view] [--replace] [--activate] [--json]
-npx -y codex-automation init [dir] [--repo <owner/repo>] [--json]
+npx -y codex-automation init [name] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--default] [--yes] [--json]
+npx -y codex-automation init --local [dir] [--repo <owner/repo>] [--json]
+npx -y codex-automation collections [list] [--json]
+npx -y codex-automation collections add <name> --repo <owner/repo> [--path <dir>] [--publish-mode <push|pr>] [--default] [--json]
+npx -y codex-automation collections default <name> [--json]
+npx -y codex-automation collections remove <name> [--json]
 npx -y codex-automation export <id> [--output <dir>] [--json]
 npx -y codex-automation inspect <dir> [--json]
 npx -y codex-automation validate <dir> [--json]
@@ -152,15 +158,60 @@ $CODEX_HOME/automations/<id>/
 
 That sidecar records where the automation came from, which makes future update/remove flows possible without changing Codex's native TOML format.
 
-## Collection Repos
+## Collections
 
-Use `init` to scaffold a public collection repository:
+Use `init` to connect the GitHub repository you share automations to:
 
 ```bash
-npx -y codex-automation init ./codex-automations --repo owner/codex-automations
+npx -y codex-automation init personal --repo vltansky/codex-automations --publish-mode push --default --yes
+npx -y codex-automation init team --repo org/codex-automations --publish-mode pr --default --yes
 ```
 
-It creates:
+Collections are stored in:
+
+```text
+$CODEX_HOME/codex-automation/config.json
+```
+
+A config can contain multiple collections and one default:
+
+```json
+{
+  "version": 1,
+  "defaultCollection": "team",
+  "collections": {
+    "personal": {
+      "repo": "vltansky/codex-automations",
+      "path": "automations",
+      "branch": "main",
+      "publishMode": "push"
+    },
+    "team": {
+      "repo": "org/codex-automations",
+      "path": "automations",
+      "branch": "main",
+      "publishMode": "pr"
+    }
+  }
+}
+```
+
+Manage collections with:
+
+```bash
+npx -y codex-automation collections
+npx -y codex-automation collections add team --repo org/codex-automations --publish-mode pr --default
+npx -y codex-automation collections default personal
+npx -y codex-automation collections remove team
+```
+
+Use `--local` when you only want to scaffold collection files into a local directory:
+
+```bash
+npx -y codex-automation init --local ./codex-automations --repo owner/codex-automations
+```
+
+The local scaffold creates:
 
 ```text
 README.md
@@ -172,7 +223,7 @@ The generated README is a catalog with `npx -y codex-automation add ...` install
 
 ## Sharing Automations
 
-`share` publishes one of your installed Codex automations into a GitHub collection repository. Run it with no arguments for the guided flow:
+`share` publishes one of your installed Codex automations into a GitHub collection repository. If a default collection exists, `share` uses it automatically. Run it with no arguments for the guided flow:
 
 ```bash
 npx -y codex-automation share
@@ -182,12 +233,11 @@ The interactive flow:
 
 1. Lists installed automations.
 2. Asks which automation to share.
-3. Suggests `<github-user>/codex-automations`.
-4. Asks for the collection path, defaulting to `automations`.
-5. Shows the destination and install command.
-6. Confirms before creating a repo, committing, or pushing.
+3. Uses the default collection when configured, or suggests `<github-user>/codex-automations`.
+4. Shows the destination, publish mode, and install command.
+5. Confirms before creating a repo, committing, pushing, or opening a PR.
 
-By default, it uses your `gh` login and targets:
+Without a configured collection, it uses your `gh` login and targets:
 
 ```text
 <github-user>/codex-automations
@@ -196,6 +246,8 @@ By default, it uses your `gh` login and targets:
 For example:
 
 ```bash
+npx -y codex-automation share morning-pr-radar
+npx -y codex-automation share morning-pr-radar --collection team
 npx -y codex-automation share morning-pr-radar --repo vltansky/codex-automations
 ```
 
@@ -219,6 +271,12 @@ Use `--dry-run` to preview without creating a repo, committing, or pushing:
 
 ```bash
 npx -y codex-automation share morning-pr-radar --repo vltansky/codex-automations --dry-run --json
+```
+
+Use `--publish-mode pr` for shared repositories where changes should go through pull requests:
+
+```bash
+npx -y codex-automation share morning-pr-radar --collection team --publish-mode pr
 ```
 
 Use `--yes` for non-interactive sharing:
@@ -286,10 +344,12 @@ codex-automations/
 
 ## Safety Model
 
-Installs write only:
+Installs write only automation files and source metadata:
 
 ```text
-$CODEX_HOME/automations/<id>/automation.toml
+$CODEX_HOME/automations/<id>/
+  automation.toml
+  codex-automation-source.json
 ```
 
 By default, the CLI:

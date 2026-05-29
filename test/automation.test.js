@@ -12,7 +12,14 @@ import {
   readPackage,
   validateAutomation
 } from "../src/automation.js";
-import { initCollection, writeCollectionReadme } from "../src/collection.js";
+import {
+  listCollections,
+  readConfig,
+  removeCollection,
+  setDefaultCollection,
+  upsertCollection
+} from "../src/config.js";
+import { initCollection, initConnectedCollection, writeCollectionReadme } from "../src/collection.js";
 import { shareAutomation } from "../src/share.js";
 import { discoverPackages, parseSource, selectPackage, selectPackages } from "../src/source.js";
 import { parseAutomationToml, stringifyAutomationToml } from "../src/toml.js";
@@ -256,6 +263,119 @@ test("collection README generator lists automation packages with npx commands", 
   const readme = await fs.readFile(path.join(temp, "repo", "README.md"), "utf8");
   assert.match(readme, /\| `morning-pr-radar` \| Morning PR Radar \|/);
   assert.match(readme, /npx -y codex-automation add vltansky\/codex-automations --automation morning-pr-radar/);
+});
+
+test("collection config supports multiple collections and one default", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+
+  await upsertCollection("personal", {
+    repo: "vltansky/codex-automations",
+    path: "automations",
+    branch: "main",
+    publishMode: "push"
+  }, { makeDefault: true }, env);
+  await upsertCollection("team", {
+    repo: "wix-playground/codex-automations",
+    path: "automations",
+    branch: "main",
+    publishMode: "pr"
+  }, {}, env);
+  await setDefaultCollection("team", env);
+
+  const config = await readConfig(env);
+  assert.equal(config.defaultCollection, "team");
+  assert.deepEqual(listCollections(config).map((collection) => collection.name), ["personal", "team"]);
+
+  await removeCollection("personal", env);
+  assert.deepEqual(Object.keys((await readConfig(env)).collections), ["team"]);
+});
+
+test("connected init stores a default collection", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+
+  const result = await initConnectedCollection({
+    name: "team",
+    repo: "wix-playground/codex-automations",
+    path: "automations",
+    publishMode: "pr",
+    makeDefault: true
+  }, env);
+
+  assert.equal(result.collection.name, "team");
+  assert.equal(result.collection.repo, "wix-playground/codex-automations");
+  assert.equal(result.collection.publishMode, "pr");
+  assert.equal((await readConfig(env)).defaultCollection, "team");
+});
+
+test("share uses default collection and creates a PR for pr publish mode", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  await writeInstalledSample(env);
+  await upsertCollection("team", {
+    repo: "wix-playground/codex-automations",
+    path: "automations",
+    branch: "main",
+    publishMode: "pr"
+  }, { makeDefault: true }, env);
+  const calls = [];
+
+  const result = await shareAutomation("morning-pr-radar", {
+    yes: true,
+    exec: async (command, args, options = {}) => {
+      calls.push([command, args, options.cwd]);
+      if (command === "gh" && args[0] === "api") return { stdout: "vltansky\n", stderr: "" };
+      if (command === "gh" && args[0] === "repo" && args[1] === "view") return { stdout: '{"nameWithOwner":"wix-playground/codex-automations"}', stderr: "" };
+      if (command === "gh" && args[0] === "repo" && args[1] === "clone") {
+        await fs.mkdir(args[3], { recursive: true });
+        return { stdout: "", stderr: "" };
+      }
+      if (command === "git" && args[0] === "status") return { stdout: "A  automations/morning-pr-radar/automation.toml\n", stderr: "" };
+      return { stdout: "", stderr: "" };
+    }
+  }, env);
+
+  assert.equal(result.repo, "wix-playground/codex-automations");
+  assert.equal(result.publishMode, "pr");
+  assert.equal(result.changed, true);
+  assert.equal(calls.some(([command, args]) => command === "git" && args[0] === "checkout" && args[1] === "-b"), true);
+  assert.equal(calls.some(([command, args]) => command === "gh" && args[0] === "pr" && args[1] === "create"), true);
+  assert.equal(calls.some(([command, args]) => command === "git" && args[0] === "push" && args.includes("main")), false);
+});
+
+test("share explicit repo does not inherit default collection publish mode", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  await writeInstalledSample(env);
+  await upsertCollection("team", {
+    repo: "wix-playground/codex-automations",
+    path: "team-automations",
+    branch: "main",
+    publishMode: "pr"
+  }, { makeDefault: true }, env);
+  const calls = [];
+
+  const result = await shareAutomation("morning-pr-radar", {
+    repo: "vltansky/codex-automations",
+    yes: true,
+    exec: async (command, args, options = {}) => {
+      calls.push([command, args, options.cwd]);
+      if (command === "gh" && args[0] === "api") return { stdout: "vltansky\n", stderr: "" };
+      if (command === "gh" && args[0] === "repo" && args[1] === "view") return { stdout: '{"nameWithOwner":"vltansky/codex-automations"}', stderr: "" };
+      if (command === "gh" && args[0] === "repo" && args[1] === "clone") {
+        await fs.mkdir(args[3], { recursive: true });
+        return { stdout: "", stderr: "" };
+      }
+      if (command === "git" && args[0] === "status") return { stdout: "A  automations/morning-pr-radar/automation.toml\n", stderr: "" };
+      return { stdout: "", stderr: "" };
+    }
+  }, env);
+
+  assert.equal(result.repo, "vltansky/codex-automations");
+  assert.equal(result.publishMode, "push");
+  assert.equal(result.packagePath, "automations/morning-pr-radar");
+  assert.equal(calls.some(([command, args]) => command === "gh" && args[0] === "pr"), false);
 });
 
 test("share dry-run plans a public collection repo without pushing", async () => {
