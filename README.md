@@ -29,12 +29,6 @@ That works well for one machine, but it is awkward to share:
 npx -y codex-automation --help
 ```
 
-Or run from this repository while developing:
-
-```bash
-node bin/codex-automation.js --help
-```
-
 Requires Node.js 20 or newer.
 
 ## Quickstart
@@ -49,7 +43,7 @@ Install from a GitHub repository:
 
 ```bash
 npx -y codex-automation add owner/repo --list
-npx -y codex-automation add owner/repo --automation morning-pr-radar --dry-run
+npx -y codex-automation add owner/repo --automation morning-pr-radar --dry-run --diff
 npx -y codex-automation add owner/repo --automation morning-pr-radar
 ```
 
@@ -65,6 +59,12 @@ Install from a direct GitHub path:
 
 ```bash
 npx -y codex-automation add https://github.com/owner/repo/tree/main/automations/morning-pr-radar
+```
+
+Create a new collection repo locally:
+
+```bash
+npx -y codex-automation init ./codex-automations --repo owner/codex-automations
 ```
 
 Export one of your local automations:
@@ -87,11 +87,12 @@ npx -y codex-automation install ./morning-pr-radar.codex-automation --id morning
 npx -y codex-automation list [--json]
 npx -y codex-automation show <id> [--json]
 npx -y codex-automation share [id] [--repo <owner/repo>] [--path <dir>] [--dry-run] [--yes] [--json]
-npx -y codex-automation add <source> [--list] [--automation <id>] [--cwd <path>] [--id <id>] [--dry-run] [--replace] [--activate] [--json]
+npx -y codex-automation add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--id <id>] [--dry-run] [--diff] [--view] [--replace] [--activate] [--json]
+npx -y codex-automation init [dir] [--repo <owner/repo>] [--json]
 npx -y codex-automation export <id> [--output <dir>] [--json]
 npx -y codex-automation inspect <dir> [--json]
 npx -y codex-automation validate <dir> [--json]
-npx -y codex-automation install <dir> [--cwd <path>] [--id <id>] [--dry-run] [--replace] [--activate] [--json]
+npx -y codex-automation install <dir> [--cwd <path>] [--id <id>] [--dry-run] [--diff] [--view] [--replace] [--activate] [--json]
 npx -y codex-automation diff <id> <dir>
 npx -y codex-automation uninstall <id> [--keep-memory] [--json]
 ```
@@ -126,6 +127,48 @@ If a source contains multiple automations, choose one with `--automation`:
 ```bash
 npx -y codex-automation add owner/repo --automation morning-pr-radar
 ```
+
+You can install more than one automation by repeating `--automation`, or install the whole collection with `--all`:
+
+```bash
+npx -y codex-automation add owner/repo --automation morning-pr-radar --automation weekly-github-standup
+npx -y codex-automation add owner/repo --all
+```
+
+Preview what will be written before installing:
+
+```bash
+npx -y codex-automation add owner/repo --automation morning-pr-radar --dry-run --diff
+npx -y codex-automation add owner/repo --automation morning-pr-radar --dry-run --view
+```
+
+When an automation is installed from `add` or `install`, the CLI stores source metadata next to `automation.toml`:
+
+```text
+$CODEX_HOME/automations/<id>/
+  automation.toml
+  codex-automation-source.json
+```
+
+That sidecar records where the automation came from, which makes future update/remove flows possible without changing Codex's native TOML format.
+
+## Collection Repos
+
+Use `init` to scaffold a public collection repository:
+
+```bash
+npx -y codex-automation init ./codex-automations --repo owner/codex-automations
+```
+
+It creates:
+
+```text
+README.md
+automations/.gitkeep
+.github/workflows/validate.yml
+```
+
+The generated README is a catalog with `npx -y codex-automation add ...` install commands. `share` regenerates the same catalog whenever it publishes an automation.
 
 ## Sharing Automations
 

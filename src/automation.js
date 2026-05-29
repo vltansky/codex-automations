@@ -6,6 +6,7 @@ import { parseAutomationToml, stringifyAutomationToml } from "./toml.js";
 
 export const MANIFEST_NAME = "codex-automation.json";
 export const AUTOMATION_NAME = "automation.toml";
+export const SOURCE_NAME = "codex-automation-source.json";
 
 export function codexHome(env = process.env) {
   return env.CODEX_HOME || path.join(os.homedir(), ".codex");
@@ -17,6 +18,10 @@ export function automationRoot(env = process.env) {
 
 export function automationPath(id, env = process.env) {
   return path.join(automationRoot(env), id, AUTOMATION_NAME);
+}
+
+export function sourceMetadataPath(id, env = process.env) {
+  return path.join(automationRoot(env), id, SOURCE_NAME);
 }
 
 export async function listAutomations(env = process.env) {
@@ -51,7 +56,14 @@ export async function listAutomations(env = process.env) {
 
 export async function readInstalled(id, env = process.env) {
   const file = automationPath(id, env);
-  return { path: file, automation: parseAutomationToml(await fs.readFile(file, "utf8")) };
+  const sourceFile = sourceMetadataPath(id, env);
+  const source = await fs.readFile(sourceFile, "utf8")
+    .then((text) => JSON.parse(text))
+    .catch((error) => {
+      if (error.code === "ENOENT") return undefined;
+      throw error;
+    });
+  return { path: file, sourcePath: sourceFile, automation: parseAutomationToml(await fs.readFile(file, "utf8")), source };
 }
 
 export async function readPackage(packagePath) {
@@ -193,10 +205,23 @@ export async function installPackage(pkg, options = {}, env = process.env) {
 
   const exists = await fs.access(plan.target).then(() => true, () => false);
   if (exists && !options.replace) fail("id_conflict", `Automation already exists at ${plan.target}`);
-  if (options.dryRun) return { ...plan, dryRun: true };
+  if (options.dryRun || options.diff || options.view) {
+    return {
+      ...plan,
+      dryRun: Boolean(options.dryRun),
+      action: exists ? "replace" : "install",
+      preview: await installPreview(plan, { exists, diff: Boolean(options.diff), view: Boolean(options.view) })
+    };
+  }
 
   await fs.mkdir(path.dirname(plan.target), { recursive: true });
   await fs.writeFile(plan.target, stringifyAutomationToml(plan.automation));
+  if (options.source) {
+    await fs.writeFile(sourceMetadataPath(plan.automation.id, env), `${JSON.stringify({
+      ...options.source,
+      installedAt: new Date().toISOString()
+    }, null, 2)}\n`);
+  }
   return { ...plan, installed: true };
 }
 
@@ -219,6 +244,39 @@ export function diffAutomation(left, right) {
     if (a[index] !== b[index]) {
       if (a[index] !== undefined) changes.push(`- ${a[index]}`);
       if (b[index] !== undefined) changes.push(`+ ${b[index]}`);
+    }
+  }
+  return changes.join("\n");
+}
+
+async function installPreview(plan, options) {
+  const nextText = stringifyAutomationToml(plan.automation);
+  const preview = {
+    target: plan.target,
+    action: options.exists ? "replace" : "install"
+  };
+
+  if (options.view) {
+    preview.automationToml = nextText;
+  }
+
+  if (options.diff) {
+    const currentText = options.exists ? await fs.readFile(plan.target, "utf8") : "";
+    preview.diff = diffText(currentText, nextText) || "No differences";
+  }
+
+  return preview;
+}
+
+function diffText(leftText, rightText) {
+  const a = leftText.split("\n");
+  const b = rightText.split("\n");
+  const max = Math.max(a.length, b.length);
+  const changes = [];
+  for (let index = 0; index < max; index += 1) {
+    if (a[index] !== b[index]) {
+      if (a[index] !== undefined && a[index] !== "") changes.push(`- ${a[index]}`);
+      if (b[index] !== undefined && b[index] !== "") changes.push(`+ ${b[index]}`);
     }
   }
   return changes.join("\n");

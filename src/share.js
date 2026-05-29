@@ -5,7 +5,7 @@ import path from "node:path";
 import { createInterface } from "node:readline/promises";
 import { promisify } from "node:util";
 import { exportAutomation, listAutomations, readPackage } from "./automation.js";
-import { discoverPackages } from "./source.js";
+import { writeCollectionReadme } from "./collection.js";
 import { fail } from "./errors.js";
 
 const execFileAsync = promisify(execFile);
@@ -111,32 +111,6 @@ async function stampSharedManifest(targetDir, ownerRepo, packagePath, repoUrl) {
     }
   };
   await fs.writeFile(path.join(targetDir, "codex-automation.json"), `${JSON.stringify(manifest, null, 2)}\n`);
-}
-
-async function writeCollectionReadme(repoDir, ownerRepo) {
-  const packages = await discoverPackages(repoDir);
-  const rows = packages.map((pkg) => {
-    const rel = path.relative(repoDir, pkg.path);
-    return `| \`${pkg.id}\` | ${pkg.title} | \`npx -y codex-automation add ${ownerRepo} --automation ${pkg.id}\` | [${rel}](./${rel}) |`;
-  });
-
-  await fs.writeFile(path.join(repoDir, "README.md"), `# Codex Automations
-
-Shared Codex automation packages.
-
-## Install
-
-\`\`\`bash
-npx -y codex-automation add ${ownerRepo} --list
-npx -y codex-automation add ${ownerRepo} --automation <id>
-\`\`\`
-
-## Automations
-
-| ID | Title | Install | Source |
-|---|---|---|---|
-${rows.join("\n")}
-`);
 }
 
 async function getGithubLogin(exec) {

@@ -102,19 +102,33 @@ export async function discoverPackages(root) {
 }
 
 export function selectPackage(packages, requested) {
+  return selectPackages(packages, { requested })[0];
+}
+
+export function selectPackages(packages, { requested, all = false } = {}) {
   if (packages.length === 0) fail("no_packages_found", "No codex-automation packages found in source");
-  if (!requested && packages.length === 1) return packages[0];
-  if (!requested) {
+  if (all) return packages;
+
+  const requestedList = normalizeRequested(requested);
+  if (requestedList.length === 0 && packages.length === 1) return [packages[0]];
+  if (requestedList.length === 0) {
     fail("multiple_packages_found", "Multiple packages found; pass --automation <id>", {
       automations: packages.map((pkg) => pkg.id)
     });
   }
 
-  const selected = packages.find((pkg) => {
-    return pkg.id === requested || pkg.name === requested || pkg.title === requested || path.basename(pkg.path) === requested;
+  return requestedList.map((item) => {
+    const selected = packages.find((pkg) => {
+      return pkg.id === item || pkg.name === item || pkg.title === item || path.basename(pkg.path) === item;
+    });
+    if (!selected) fail("package_not_found", `Automation not found in source: ${item}`);
+    return selected;
   });
-  if (!selected) fail("package_not_found", `Automation not found in source: ${requested}`);
-  return selected;
+}
+
+function normalizeRequested(requested) {
+  if (!requested) return [];
+  return Array.isArray(requested) ? requested : [requested];
 }
 
 async function collectCandidates(root, current, candidates, depth) {

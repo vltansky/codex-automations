@@ -12,8 +12,9 @@ import {
   readPackage,
   validateAutomation
 } from "../src/automation.js";
+import { initCollection, writeCollectionReadme } from "../src/collection.js";
 import { shareAutomation } from "../src/share.js";
-import { discoverPackages, parseSource, selectPackage } from "../src/source.js";
+import { discoverPackages, parseSource, selectPackage, selectPackages } from "../src/source.js";
 import { parseAutomationToml, stringifyAutomationToml } from "../src/toml.js";
 import { main } from "../src/cli.js";
 
@@ -127,6 +128,52 @@ test("dry-run install still detects id conflicts", async () => {
   );
 });
 
+test("install preview can include diff and view output", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  const sourceDir = path.join(env.CODEX_HOME, "automations", "morning-pr-radar");
+  await fs.mkdir(sourceDir, { recursive: true });
+  await fs.writeFile(path.join(sourceDir, "automation.toml"), sampleToml);
+
+  const packageDir = path.join(temp, "morning-pr-radar.codex-automation");
+  await exportAutomation("morning-pr-radar", packageDir, env);
+  const pkg = await readPackage(packageDir);
+
+  const result = await installPackage(pkg, { id: "preview-radar", cwd: temp, dryRun: true, diff: true, view: true }, env);
+  assert.equal(result.preview.action, "install");
+  assert.match(result.preview.automationToml, /id = "preview-radar"/);
+  assert.match(result.preview.diff, /\+ id = "preview-radar"/);
+});
+
+test("install writes source metadata sidecar", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  const sourceDir = path.join(env.CODEX_HOME, "automations", "morning-pr-radar");
+  await fs.mkdir(sourceDir, { recursive: true });
+  await fs.writeFile(path.join(sourceDir, "automation.toml"), sampleToml);
+
+  const packageDir = path.join(temp, "morning-pr-radar.codex-automation");
+  await exportAutomation("morning-pr-radar", packageDir, env);
+  const pkg = await readPackage(packageDir);
+
+  await installPackage(pkg, {
+    id: "source-radar",
+    cwd: temp,
+    source: {
+      type: "github",
+      owner: "vltansky",
+      repo: "codex-automations",
+      packageId: "morning-pr-radar"
+    }
+  }, env);
+
+  const installed = await readInstalled("source-radar", env);
+  assert.equal(installed.source.type, "github");
+  assert.equal(installed.source.owner, "vltansky");
+  assert.equal(installed.source.packageId, "morning-pr-radar");
+  assert.match(installed.source.installedAt, /^\d{4}-\d{2}-\d{2}T/);
+});
+
 test("parses GitHub-like add sources", () => {
   assert.deepEqual(parseSource("vercel-labs/skills"), {
     type: "github",
@@ -183,7 +230,32 @@ test("selectPackage rejects ambiguous collections until automation is specified"
   assert.deepEqual(packages.map((pkg) => pkg.id), ["morning-pr-radar", "weekly-release-notes"]);
   assert.throws(() => selectPackage(packages), /Multiple packages found/);
   assert.equal(selectPackage(packages, "Weekly Release Notes").id, "weekly-release-notes");
+  assert.deepEqual(selectPackages(packages, { requested: ["morning-pr-radar", "weekly-release-notes"] }).map((pkg) => pkg.id), ["morning-pr-radar", "weekly-release-notes"]);
+  assert.deepEqual(selectPackages(packages, { all: true }).map((pkg) => pkg.id), ["morning-pr-radar", "weekly-release-notes"]);
   assert.throws(() => selectPackage(packages, "missing"), /Automation not found/);
+});
+
+test("collection init scaffolds readme and validation workflow", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const result = await initCollection(path.join(temp, "collection"), { repo: "vltansky/codex-automations" });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.files, ["README.md", "automations/.gitkeep", ".github/workflows/validate.yml"]);
+  assert.match(await fs.readFile(path.join(result.path, "README.md"), "utf8"), /npx -y codex-automation add vltansky\/codex-automations --list/);
+  assert.match(await fs.readFile(path.join(result.path, ".github", "workflows", "validate.yml"), "utf8"), /npx -y codex-automation add \. --list --json/);
+});
+
+test("collection README generator lists automation packages with npx commands", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  await writeInstalledSample(env);
+  const packageDir = path.join(temp, "repo", "automations", "morning-pr-radar");
+  await exportAutomation("morning-pr-radar", packageDir, env);
+
+  await writeCollectionReadme(path.join(temp, "repo"), "vltansky/codex-automations");
+  const readme = await fs.readFile(path.join(temp, "repo", "README.md"), "utf8");
+  assert.match(readme, /\| `morning-pr-radar` \| Morning PR Radar \|/);
+  assert.match(readme, /npx -y codex-automation add vltansky\/codex-automations --automation morning-pr-radar/);
 });
 
 test("share dry-run plans a public collection repo without pushing", async () => {

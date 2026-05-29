@@ -11,9 +11,10 @@ import {
   validateAutomation,
   validateManifest
 } from "./automation.js";
+import { initCollection } from "./collection.js";
 import { fail } from "./errors.js";
 import { shareAutomation } from "./share.js";
-import { discoverPackages, resolveSource, selectPackage } from "./source.js";
+import { discoverPackages, resolveSource, selectPackages } from "./source.js";
 
 export async function main(argv) {
   const { command, args, flags } = parseArgs(argv);
@@ -32,6 +33,8 @@ export async function main(argv) {
       return shareCommand(args[0], flags, json);
     case "add":
       return addCommand(required(args[0], "source"), flags, json);
+    case "init":
+      return print(await initCollection(args[0] || ".", { repo: flags.repo }), json);
     case "inspect":
       return inspectCommand(required(args[0], "package"), json);
     case "install":
@@ -74,17 +77,26 @@ async function addCommand(source, flags, json) {
       })), json);
     }
 
-    const selected = selectPackage(packages, flags.automation);
-    const pkg = await readPackage(selected.path);
-    const result = await installPackage(pkg, {
-      id: flags.id,
-      cwd: flags.cwd,
-      replace: Boolean(flags.replace),
-      dryRun: Boolean(flags["dry-run"]),
-      activate: Boolean(flags.activate)
-    });
-    if (!result.ok) process.exitCode = 1;
-    return print({ ...result, source, selected: selected.id }, json);
+    const selected = selectPackages(packages, { requested: flags.automation, all: Boolean(flags.all) });
+    if (flags.id && selected.length > 1) fail("id_with_multiple_automations", "--id can only be used when installing one automation");
+
+    const results = [];
+    for (const item of selected) {
+      const pkg = await readPackage(item.path);
+      const result = await installPackage(pkg, {
+        id: flags.id,
+        cwd: flags.cwd,
+        replace: Boolean(flags.replace),
+        dryRun: Boolean(flags["dry-run"]),
+        diff: Boolean(flags.diff),
+        view: Boolean(flags.view),
+        activate: Boolean(flags.activate),
+        source: sourceMetadata(source, resolved, item)
+      });
+      if (!result.ok) process.exitCode = 1;
+      results.push({ ...result, source, selected: item.id });
+    }
+    return print(results.length === 1 ? results[0] : results, json);
   } finally {
     await resolved.cleanup();
   }
@@ -122,7 +134,15 @@ async function installCommand(packagePath, flags, json) {
     cwd: flags.cwd,
     replace: Boolean(flags.replace),
     dryRun: Boolean(flags["dry-run"]),
-    activate: Boolean(flags.activate)
+    diff: Boolean(flags.diff),
+    view: Boolean(flags.view),
+    activate: Boolean(flags.activate),
+    source: {
+      type: "local",
+      input: packagePath,
+      path: path.resolve(packagePath),
+      packageId: pkg.manifest.install?.suggestedId || pkg.automation.id
+    }
   };
   const result = await installPackage(pkg, options);
   if (!result.ok) process.exitCode = 1;
@@ -145,8 +165,12 @@ function parseArgs(argv) {
       continue;
     }
     const key = item.slice(2);
-    if (["json", "dry-run", "replace", "activate", "keep-memory", "list", "yes", "help"].includes(key)) {
+    if (["json", "dry-run", "replace", "activate", "keep-memory", "list", "yes", "help", "all", "diff", "view"].includes(key)) {
       flags[key] = true;
+    } else if (key === "automation") {
+      const value = required(argv[index + 1], key);
+      flags[key] = flags[key] ? [...asArray(flags[key]), value] : value;
+      index += 1;
     } else {
       flags[key] = required(argv[index + 1], key);
       index += 1;
@@ -166,10 +190,46 @@ function print(value, json) {
     return;
   }
   if (Array.isArray(value)) {
-    for (const row of value) console.log(`${row.id}\t${row.status}\t${row.kind}\t${row.name}`);
+    for (const row of value) {
+      if ("status" in row || "kind" in row) console.log(`${row.id}\t${row.status}\t${row.kind}\t${row.name}`);
+      else if ("title" in row) console.log(`${row.id}\t${row.title}\t${row.path || ""}`);
+      else console.log(JSON.stringify(row));
+    }
     return;
   }
   console.log(JSON.stringify(value, null, 2));
+}
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [value];
+}
+
+function sourceMetadata(source, resolved, selected) {
+  const parsed = resolved.source;
+  const collectionPath = path.relative(resolved.root, selected.path) || ".";
+  const metadata = {
+    input: source,
+    packageId: selected.id,
+    collectionPath
+  };
+  if (parsed?.type === "github") {
+    return {
+      ...metadata,
+      type: "github",
+      owner: parsed.owner,
+      repo: parsed.repo,
+      ref: parsed.ref,
+      subpath: parsed.subpath
+    };
+  }
+  if (parsed?.type === "local") {
+    return {
+      ...metadata,
+      type: "local",
+      path: path.resolve(parsed.path)
+    };
+  }
+  return metadata;
 }
 
 function help() {
@@ -179,11 +239,12 @@ Usage:
   npx -y codex-automation list [--json]
   npx -y codex-automation show <id> [--json]
   npx -y codex-automation share [id] [--repo <owner/repo>] [--path <dir>] [--dry-run] [--yes] [--json]
-  npx -y codex-automation add <source> [--list] [--automation <id>] [--cwd <path>] [--id <id>] [--dry-run] [--replace] [--activate] [--json]
+  npx -y codex-automation add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--id <id>] [--dry-run] [--diff] [--view] [--replace] [--activate] [--json]
+  npx -y codex-automation init [dir] [--repo <owner/repo>] [--json]
   npx -y codex-automation export <id> [--output <dir>] [--json]
   npx -y codex-automation inspect <dir> [--json]
   npx -y codex-automation validate <dir> [--json]
-  npx -y codex-automation install <dir> [--cwd <path>] [--id <id>] [--dry-run] [--replace] [--activate] [--json]
+  npx -y codex-automation install <dir> [--cwd <path>] [--id <id>] [--dry-run] [--diff] [--view] [--replace] [--activate] [--json]
   npx -y codex-automation diff <id> <dir>
   npx -y codex-automation uninstall <id> [--keep-memory] [--json]
 
