@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { promisify } from "node:util";
 import {
   exportAutomation,
   installPackage,
@@ -24,6 +26,8 @@ import { shareAutomation } from "../src/share.js";
 import { discoverPackages, parseSource, selectPackage, selectPackages } from "../src/source.js";
 import { parseAutomationToml, stringifyAutomationToml } from "../src/toml.js";
 import { main } from "../src/cli.js";
+
+const execFileAsync = promisify(execFile);
 
 const sampleToml = `version = 1
 id = "morning-pr-radar"
@@ -63,6 +67,30 @@ test("global --help prints help instead of requiring a value", async () => {
   assert.equal(lines.length, 1);
   assert.match(lines[0], /codex-automations/);
   assert.match(lines[0], /Usage:/);
+});
+
+test("bin prints human errors by default and JSON errors with --json", async () => {
+  await assert.rejects(
+    () => execFileAsync(process.execPath, ["bin/codex-automation.js", "nope"], { cwd: process.cwd() }),
+    (error) => {
+      assert.match(error.stderr, /^Error: Unknown command: nope/m);
+      assert.doesNotMatch(error.stderr, /"ok": false/);
+      return true;
+    }
+  );
+
+  await assert.rejects(
+    () => execFileAsync(process.execPath, ["bin/codex-automation.js", "nope", "--json"], { cwd: process.cwd() }),
+    (error) => {
+      const payload = JSON.parse(error.stderr);
+      assert.deepEqual(payload, {
+        ok: false,
+        code: "unknown_command",
+        message: "Unknown command: nope"
+      });
+      return true;
+    }
+  );
 });
 
 test("validates installed automation shape", () => {
