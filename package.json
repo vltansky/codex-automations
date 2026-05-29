@@ -1,6 +1,6 @@
 {
   "name": "codex-automations",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Share, inspect, export, and install Codex automation packages.",
   "type": "module",
   "bin": {
@@ -31,6 +31,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vltansky/codex-automation.git"
+    "url": "git+https://github.com/vltansky/codex-automations.git"
   }
 }
