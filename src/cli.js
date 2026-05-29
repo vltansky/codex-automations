@@ -283,25 +283,25 @@ function sourceMetadata(source, resolved, selected) {
 }
 
 function help() {
-  console.log(`codex-automation
+  console.log(`codex-automations
 
 Usage:
-  npx -y codex-automation list [--json]
-  npx -y codex-automation show <id> [--json]
-  npx -y codex-automation share [id] [--collection <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--dry-run] [--yes] [--json]
-  npx -y codex-automation add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--id <id>] [--dry-run] [--diff] [--view] [--replace] [--activate] [--json]
-  npx -y codex-automation init [name] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--default] [--yes] [--json]
-  npx -y codex-automation init --local [dir] [--repo <owner/repo>] [--json]
-  npx -y codex-automation collections [list] [--json]
-  npx -y codex-automation collections add <name> --repo <owner/repo> [--path <dir>] [--publish-mode <push|pr>] [--default] [--json]
-  npx -y codex-automation collections default <name> [--json]
-  npx -y codex-automation collections remove <name> [--json]
-  npx -y codex-automation export <id> [--output <dir>] [--json]
-  npx -y codex-automation inspect <dir> [--json]
-  npx -y codex-automation validate <dir> [--json]
-  npx -y codex-automation install <dir> [--cwd <path>] [--id <id>] [--dry-run] [--diff] [--view] [--replace] [--activate] [--json]
-  npx -y codex-automation diff <id> <dir>
-  npx -y codex-automation uninstall <id> [--keep-memory] [--json]
+  npx -y codex-automations list [--json]
+  npx -y codex-automations show <id> [--json]
+  npx -y codex-automations share [id] [--collection <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--dry-run] [--yes] [--json]
+  npx -y codex-automations add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--id <id>] [--dry-run] [--diff] [--view] [--replace] [--activate] [--json]
+  npx -y codex-automations init [name] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--default] [--yes] [--json]
+  npx -y codex-automations init --local [dir] [--repo <owner/repo>] [--json]
+  npx -y codex-automations collections [list] [--json]
+  npx -y codex-automations collections add <name> --repo <owner/repo> [--path <dir>] [--publish-mode <push|pr>] [--default] [--json]
+  npx -y codex-automations collections default <name> [--json]
+  npx -y codex-automations collections remove <name> [--json]
+  npx -y codex-automations export <id> [--output <dir>] [--json]
+  npx -y codex-automations inspect <dir> [--json]
+  npx -y codex-automations validate <dir> [--json]
+  npx -y codex-automations install <dir> [--cwd <path>] [--id <id>] [--dry-run] [--diff] [--view] [--replace] [--activate] [--json]
+  npx -y codex-automations diff <id> <dir>
+  npx -y codex-automations uninstall <id> [--keep-memory] [--json]
 
 Sources:
   owner/repo

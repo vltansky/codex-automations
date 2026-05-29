@@ -106,7 +106,7 @@ export function selectPackage(packages, requested) {
 }
 
 export function selectPackages(packages, { requested, all = false } = {}) {
-  if (packages.length === 0) fail("no_packages_found", "No codex-automation packages found in source");
+  if (packages.length === 0) fail("no_packages_found", "No codex-automations packages found in source");
   if (all) return packages;
 
   const requestedList = normalizeRequested(requested);

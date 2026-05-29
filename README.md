@@ -1,8 +1,8 @@
-# codex-automation
+# codex-automations
 
 Share and install Codex App automations from local folders or GitHub URLs.
 
-`codex-automation` is a tiny CLI for making Codex automations portable. It keeps Codex's native `automation.toml` as the runtime format, then adds just enough package metadata to make automations easy to publish, inspect, validate, and install on another machine.
+`codex-automations` is a tiny CLI for making Codex automations portable. It keeps Codex's native `automation.toml` as the runtime format, then adds just enough package metadata to make automations easy to publish, inspect, validate, and install on another machine.
 
 It is inspired by the ergonomics of tools like `npx skills add owner/repo`, but for Codex automations.
 
@@ -21,12 +21,12 @@ That works well for one machine, but it is awkward to share:
 - Prompts can reference connectors, user-scoped skills, or local paths.
 - Installing by hand makes it easy to overwrite an existing automation or activate something before reviewing it.
 
-`codex-automation` wraps those local files in a portable package and installs them safely.
+`codex-automations` wraps those local files in a portable package and installs them safely.
 
 ## Install
 
 ```bash
-npx -y codex-automation --help
+npx -y codex-automations --help
 ```
 
 Requires Node.js 20 or newer.
@@ -36,71 +36,71 @@ Requires Node.js 20 or newer.
 List automations already installed in Codex:
 
 ```bash
-npx -y codex-automation list
+npx -y codex-automations list
 ```
 
 Install from a GitHub repository:
 
 ```bash
-npx -y codex-automation add owner/repo --list
-npx -y codex-automation add owner/repo --automation morning-pr-radar --dry-run --diff
-npx -y codex-automation add owner/repo --automation morning-pr-radar
+npx -y codex-automations add owner/repo --list
+npx -y codex-automations add owner/repo --automation morning-pr-radar --dry-run --diff
+npx -y codex-automations add owner/repo --automation morning-pr-radar
 ```
 
 Share one of your local automations to a GitHub collection:
 
 ```bash
-npx -y codex-automation init personal --repo vltansky/codex-automations --publish-mode push --default --yes
-npx -y codex-automation share
-npx -y codex-automation share morning-pr-radar --dry-run
-npx -y codex-automation share morning-pr-radar
+npx -y codex-automations init personal --repo vltansky/codex-automations --publish-mode push --default --yes
+npx -y codex-automations share
+npx -y codex-automations share morning-pr-radar --dry-run
+npx -y codex-automations share morning-pr-radar
 ```
 
 Install from a direct GitHub path:
 
 ```bash
-npx -y codex-automation add https://github.com/owner/repo/tree/main/automations/morning-pr-radar
+npx -y codex-automations add https://github.com/owner/repo/tree/main/automations/morning-pr-radar
 ```
 
 Connect a shared collection that publishes through pull requests:
 
 ```bash
-npx -y codex-automation init team --repo org/codex-automations --publish-mode pr --default --yes
+npx -y codex-automations init team --repo org/codex-automations --publish-mode pr --default --yes
 ```
 
 Export one of your local automations:
 
 ```bash
-npx -y codex-automation export morning-pr-radar --output ./morning-pr-radar.codex-automation
+npx -y codex-automations export morning-pr-radar --output ./morning-pr-radar.codex-automation
 ```
 
 Inspect and install a local package:
 
 ```bash
-npx -y codex-automation inspect ./morning-pr-radar.codex-automation
-npx -y codex-automation install ./morning-pr-radar.codex-automation --dry-run
-npx -y codex-automation install ./morning-pr-radar.codex-automation --id morning-pr-radar-copy
+npx -y codex-automations inspect ./morning-pr-radar.codex-automation
+npx -y codex-automations install ./morning-pr-radar.codex-automation --dry-run
+npx -y codex-automations install ./morning-pr-radar.codex-automation --id morning-pr-radar-copy
 ```
 
 ## Commands
 
 ```text
-npx -y codex-automation list [--json]
-npx -y codex-automation show <id> [--json]
-npx -y codex-automation share [id] [--collection <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--dry-run] [--yes] [--json]
-npx -y codex-automation add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--id <id>] [--dry-run] [--diff] [--view] [--replace] [--activate] [--json]
-npx -y codex-automation init [name] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--default] [--yes] [--json]
-npx -y codex-automation init --local [dir] [--repo <owner/repo>] [--json]
-npx -y codex-automation collections [list] [--json]
-npx -y codex-automation collections add <name> --repo <owner/repo> [--path <dir>] [--publish-mode <push|pr>] [--default] [--json]
-npx -y codex-automation collections default <name> [--json]
-npx -y codex-automation collections remove <name> [--json]
-npx -y codex-automation export <id> [--output <dir>] [--json]
-npx -y codex-automation inspect <dir> [--json]
-npx -y codex-automation validate <dir> [--json]
-npx -y codex-automation install <dir> [--cwd <path>] [--id <id>] [--dry-run] [--diff] [--view] [--replace] [--activate] [--json]
-npx -y codex-automation diff <id> <dir>
-npx -y codex-automation uninstall <id> [--keep-memory] [--json]
+npx -y codex-automations list [--json]
+npx -y codex-automations show <id> [--json]
+npx -y codex-automations share [id] [--collection <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--dry-run] [--yes] [--json]
+npx -y codex-automations add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--id <id>] [--dry-run] [--diff] [--view] [--replace] [--activate] [--json]
+npx -y codex-automations init [name] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--default] [--yes] [--json]
+npx -y codex-automations init --local [dir] [--repo <owner/repo>] [--json]
+npx -y codex-automations collections [list] [--json]
+npx -y codex-automations collections add <name> --repo <owner/repo> [--path <dir>] [--publish-mode <push|pr>] [--default] [--json]
+npx -y codex-automations collections default <name> [--json]
+npx -y codex-automations collections remove <name> [--json]
+npx -y codex-automations export <id> [--output <dir>] [--json]
+npx -y codex-automations inspect <dir> [--json]
+npx -y codex-automations validate <dir> [--json]
+npx -y codex-automations install <dir> [--cwd <path>] [--id <id>] [--dry-run] [--diff] [--view] [--replace] [--activate] [--json]
+npx -y codex-automations diff <id> <dir>
+npx -y codex-automations uninstall <id> [--keep-memory] [--json]
 ```
 
 ## Source Formats
@@ -109,43 +109,43 @@ npx -y codex-automation uninstall <id> [--keep-memory] [--json]
 
 ```bash
 # GitHub shorthand
-npx -y codex-automation add owner/repo
+npx -y codex-automations add owner/repo
 
 # Full GitHub repository URL
-npx -y codex-automation add https://github.com/owner/repo
+npx -y codex-automations add https://github.com/owner/repo
 
 # Direct path to a package or collection inside a repo
-npx -y codex-automation add https://github.com/owner/repo/tree/main/automations/my-automation
+npx -y codex-automations add https://github.com/owner/repo/tree/main/automations/my-automation
 
 # Local package or local collection
-npx -y codex-automation add ./my-automation.codex-automation
-npx -y codex-automation add ./automations
+npx -y codex-automations add ./my-automation.codex-automation
+npx -y codex-automations add ./automations
 ```
 
 Use `--list` to see packages in a source without installing:
 
 ```bash
-npx -y codex-automation add owner/repo --list
+npx -y codex-automations add owner/repo --list
 ```
 
 If a source contains multiple automations, choose one with `--automation`:
 
 ```bash
-npx -y codex-automation add owner/repo --automation morning-pr-radar
+npx -y codex-automations add owner/repo --automation morning-pr-radar
 ```
 
 You can install more than one automation by repeating `--automation`, or install the whole collection with `--all`:
 
 ```bash
-npx -y codex-automation add owner/repo --automation morning-pr-radar --automation weekly-github-standup
-npx -y codex-automation add owner/repo --all
+npx -y codex-automations add owner/repo --automation morning-pr-radar --automation weekly-github-standup
+npx -y codex-automations add owner/repo --all
 ```
 
 Preview what will be written before installing:
 
 ```bash
-npx -y codex-automation add owner/repo --automation morning-pr-radar --dry-run --diff
-npx -y codex-automation add owner/repo --automation morning-pr-radar --dry-run --view
+npx -y codex-automations add owner/repo --automation morning-pr-radar --dry-run --diff
+npx -y codex-automations add owner/repo --automation morning-pr-radar --dry-run --view
 ```
 
 When an automation is installed from `add` or `install`, the CLI stores source metadata next to `automation.toml`:
@@ -163,14 +163,14 @@ That sidecar records where the automation came from, which makes future update/r
 Use `init` to connect the GitHub repository you share automations to:
 
 ```bash
-npx -y codex-automation init personal --repo vltansky/codex-automations --publish-mode push --default --yes
-npx -y codex-automation init team --repo org/codex-automations --publish-mode pr --default --yes
+npx -y codex-automations init personal --repo vltansky/codex-automations --publish-mode push --default --yes
+npx -y codex-automations init team --repo org/codex-automations --publish-mode pr --default --yes
 ```
 
 Collections are stored in:
 
 ```text
-$CODEX_HOME/codex-automation/config.json
+$CODEX_HOME/codex-automations/config.json
 ```
 
 A config can contain multiple collections and one default:
@@ -199,16 +199,16 @@ A config can contain multiple collections and one default:
 Manage collections with:
 
 ```bash
-npx -y codex-automation collections
-npx -y codex-automation collections add team --repo org/codex-automations --publish-mode pr --default
-npx -y codex-automation collections default personal
-npx -y codex-automation collections remove team
+npx -y codex-automations collections
+npx -y codex-automations collections add team --repo org/codex-automations --publish-mode pr --default
+npx -y codex-automations collections default personal
+npx -y codex-automations collections remove team
 ```
 
 Use `--local` when you only want to scaffold collection files into a local directory:
 
 ```bash
-npx -y codex-automation init --local ./codex-automations --repo owner/codex-automations
+npx -y codex-automations init --local ./codex-automations --repo owner/codex-automations
 ```
 
 The local scaffold creates:
@@ -219,14 +219,14 @@ automations/.gitkeep
 .github/workflows/validate.yml
 ```
 
-The generated README is a catalog with `npx -y codex-automation add ...` install commands. `share` regenerates the same catalog whenever it publishes an automation.
+The generated README is a catalog with `npx -y codex-automations add ...` install commands. `share` regenerates the same catalog whenever it publishes an automation.
 
 ## Sharing Automations
 
 `share` publishes one of your installed Codex automations into a GitHub collection repository. If a default collection exists, `share` uses it automatically. Run it with no arguments for the guided flow:
 
 ```bash
-npx -y codex-automation share
+npx -y codex-automations share
 ```
 
 The interactive flow:
@@ -246,9 +246,9 @@ Without a configured collection, it uses your `gh` login and targets:
 For example:
 
 ```bash
-npx -y codex-automation share morning-pr-radar
-npx -y codex-automation share morning-pr-radar --collection team
-npx -y codex-automation share morning-pr-radar --repo vltansky/codex-automations
+npx -y codex-automations share morning-pr-radar
+npx -y codex-automations share morning-pr-radar --collection team
+npx -y codex-automations share morning-pr-radar --repo vltansky/codex-automations
 ```
 
 If the target repo does not exist, `share` can create it as a public GitHub repository. It then exports the automation into:
@@ -263,26 +263,26 @@ automations/<id>/
 It also updates the collection README so others can install with:
 
 ```bash
-npx -y codex-automation add vltansky/codex-automations --list
-npx -y codex-automation add vltansky/codex-automations --automation morning-pr-radar
+npx -y codex-automations add vltansky/codex-automations --list
+npx -y codex-automations add vltansky/codex-automations --automation morning-pr-radar
 ```
 
 Use `--dry-run` to preview without creating a repo, committing, or pushing:
 
 ```bash
-npx -y codex-automation share morning-pr-radar --repo vltansky/codex-automations --dry-run --json
+npx -y codex-automations share morning-pr-radar --repo vltansky/codex-automations --dry-run --json
 ```
 
 Use `--publish-mode pr` for shared repositories where changes should go through pull requests:
 
 ```bash
-npx -y codex-automation share morning-pr-radar --collection team --publish-mode pr
+npx -y codex-automations share morning-pr-radar --collection team --publish-mode pr
 ```
 
 Use `--yes` for non-interactive sharing:
 
 ```bash
-npx -y codex-automation share morning-pr-radar --repo vltansky/codex-automations --yes
+npx -y codex-automations share morning-pr-radar --repo vltansky/codex-automations --yes
 ```
 
 ## Package Format
@@ -340,7 +340,7 @@ codex-automations/
       README.md
 ```
 
-`npx -y codex-automation add owner/repo --list` scans collections and shows the available automations.
+`npx -y codex-automations add owner/repo --list` scans collections and shows the available automations.
 
 ## Safety Model
 
@@ -367,7 +367,7 @@ By default, the CLI:
 Activate explicitly after reviewing:
 
 ```bash
-npx -y codex-automation add owner/repo --automation morning-pr-radar --activate
+npx -y codex-automations add owner/repo --automation morning-pr-radar --activate
 ```
 
 ## JSON Output
@@ -375,8 +375,8 @@ npx -y codex-automation add owner/repo --automation morning-pr-radar --activate
 Most commands support `--json` for agent and script usage:
 
 ```bash
-npx -y codex-automation add owner/repo --list --json
-npx -y codex-automation install ./morning-pr-radar.codex-automation --dry-run --json
+npx -y codex-automations add owner/repo --list --json
+npx -y codex-automations install ./morning-pr-radar.codex-automation --dry-run --json
 ```
 
 Errors are emitted as structured JSON with a stable `code` where possible.

@@ -10,7 +10,7 @@ export async function writeCollectionReadme(repoDir, ownerRepo = "owner/codex-au
   const rows = packages.map((pkg) => {
     const rel = path.relative(repoDir, pkg.path);
     const description = pkg.manifest.description || "";
-    return `| \`${pkg.id}\` | ${escapeCell(pkg.title)} | ${escapeCell(description)} | \`npx -y codex-automation add ${ownerRepo} --automation ${pkg.id}\` | [${rel}](./${rel}) |`;
+    return `| \`${pkg.id}\` | ${escapeCell(pkg.title)} | ${escapeCell(description)} | \`npx -y codex-automations add ${ownerRepo} --automation ${pkg.id}\` | [${rel}](./${rel}) |`;
   });
 
   await fs.writeFile(path.join(repoDir, "README.md"), `# Codex Automations
@@ -20,9 +20,9 @@ Shared Codex automation packages.
 ## Install
 
 \`\`\`bash
-npx -y codex-automation add ${ownerRepo} --list
-npx -y codex-automation add ${ownerRepo} --automation <id> --dry-run --diff
-npx -y codex-automation add ${ownerRepo} --automation <id>
+npx -y codex-automations add ${ownerRepo} --list
+npx -y codex-automations add ${ownerRepo} --automation <id> --dry-run --diff
+npx -y codex-automations add ${ownerRepo} --automation <id>
 \`\`\`
 
 ## Automations
@@ -93,7 +93,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npx -y codex-automation add . --list --json
+      - run: npx -y codex-automations add . --list --json
 `);
 }
 

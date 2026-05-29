@@ -61,7 +61,7 @@ test("global --help prints help instead of requiring a value", async () => {
     console.log = originalLog;
   }
   assert.equal(lines.length, 1);
-  assert.match(lines[0], /codex-automation/);
+  assert.match(lines[0], /codex-automations/);
   assert.match(lines[0], /Usage:/);
 });
 
@@ -248,8 +248,8 @@ test("collection init scaffolds readme and validation workflow", async () => {
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.files, ["README.md", "automations/.gitkeep", ".github/workflows/validate.yml"]);
-  assert.match(await fs.readFile(path.join(result.path, "README.md"), "utf8"), /npx -y codex-automation add vltansky\/codex-automations --list/);
-  assert.match(await fs.readFile(path.join(result.path, ".github", "workflows", "validate.yml"), "utf8"), /npx -y codex-automation add \. --list --json/);
+  assert.match(await fs.readFile(path.join(result.path, "README.md"), "utf8"), /npx -y codex-automations add vltansky\/codex-automations --list/);
+  assert.match(await fs.readFile(path.join(result.path, ".github", "workflows", "validate.yml"), "utf8"), /npx -y codex-automations add \. --list --json/);
 });
 
 test("collection README generator lists automation packages with npx commands", async () => {
@@ -262,7 +262,7 @@ test("collection README generator lists automation packages with npx commands", 
   await writeCollectionReadme(path.join(temp, "repo"), "vltansky/codex-automations");
   const readme = await fs.readFile(path.join(temp, "repo", "README.md"), "utf8");
   assert.match(readme, /\| `morning-pr-radar` \| Morning PR Radar \|/);
-  assert.match(readme, /npx -y codex-automation add vltansky\/codex-automations --automation morning-pr-radar/);
+  assert.match(readme, /npx -y codex-automations add vltansky\/codex-automations --automation morning-pr-radar/);
 });
 
 test("collection config supports multiple collections and one default", async () => {
@@ -402,7 +402,7 @@ test("share dry-run plans a public collection repo without pushing", async () =>
   assert.equal(result.dryRun, true);
   assert.equal(result.wouldCreateRepo, true);
   assert.equal(result.packagePath, "automations/morning-pr-radar");
-  assert.equal(result.installCommand, "npx -y codex-automation add vltansky/codex-automations --automation morning-pr-radar");
+  assert.equal(result.installCommand, "npx -y codex-automations add vltansky/codex-automations --automation morning-pr-radar");
   assert.equal(calls.some(([command, args]) => command === "gh" && args.includes("create")), false);
   assert.equal(calls.some(([command, args]) => command === "git" && args[0] === "push"), false);
 });

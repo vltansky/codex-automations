@@ -27,7 +27,7 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
   const packagePath = `${collectionPath.replace(/^\/|\/$/g, "")}/${selectedId}`;
   const repoExists = await githubRepoExists(exec, ownerRepo);
   const repoUrl = `https://github.com/${ownerRepo}`;
-  const installCommand = `npx -y codex-automation add ${ownerRepo} --automation ${selectedId}`;
+  const installCommand = `npx -y codex-automations add ${ownerRepo} --automation ${selectedId}`;
 
   const confirmed = options.yes || options.dryRun || await confirmShare({
     id: selectedId,

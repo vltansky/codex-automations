@@ -6,6 +6,10 @@ import { fail } from "./errors.js";
 export const CONFIG_NAME = "config.json";
 
 export function configDir(env = process.env) {
+  return path.join(codexHome(env), "codex-automations");
+}
+
+export function legacyConfigDir(env = process.env) {
   return path.join(codexHome(env), "codex-automation");
 }
 
@@ -19,7 +23,15 @@ export async function readConfig(env = process.env) {
     const parsed = JSON.parse(await fs.readFile(file, "utf8"));
     return normalizeConfig(parsed);
   } catch (error) {
-    if (error.code === "ENOENT") return normalizeConfig({});
+    if (error.code === "ENOENT") {
+      const legacyFile = path.join(legacyConfigDir(env), CONFIG_NAME);
+      return fs.readFile(legacyFile, "utf8")
+        .then((text) => normalizeConfig(JSON.parse(text)))
+        .catch((legacyError) => {
+          if (legacyError.code === "ENOENT") return normalizeConfig({});
+          throw legacyError;
+        });
+    }
     throw error;
   }
 }
