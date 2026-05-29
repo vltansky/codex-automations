@@ -42,15 +42,15 @@ npx -y codex-automations list
 Install from a GitHub repository:
 
 ```bash
-npx -y codex-automations add owner/repo --list
-npx -y codex-automations add owner/repo --automation morning-pr-radar --dry-run
-npx -y codex-automations add owner/repo --automation morning-pr-radar
+npx -y codex-automations add vltansky/automations --list
+npx -y codex-automations add vltansky/automations --automation morning-pr-radar --dry-run
+npx -y codex-automations add vltansky/automations --automation morning-pr-radar
 ```
 
 Share one of your local automations to a GitHub collection:
 
 ```bash
-npx -y codex-automations init personal --repo vltansky/codex-automations --publish-mode push --default --yes
+npx -y codex-automations init personal --repo vltansky/automations --publish-mode push --default --yes
 npx -y codex-automations share
 npx -y codex-automations share morning-pr-radar --dry-run
 npx -y codex-automations share morning-pr-radar
@@ -144,8 +144,8 @@ npx -y codex-automations add owner/repo --all
 Preview what will be written before installing:
 
 ```bash
-npx -y codex-automations add owner/repo --automation morning-pr-radar --dry-run
-npx -y codex-automations add owner/repo --automation morning-pr-radar --dry-run --view
+npx -y codex-automations add vltansky/automations --automation morning-pr-radar --dry-run
+npx -y codex-automations add vltansky/automations --automation morning-pr-radar --dry-run --view
 ```
 
 When an automation is installed from `add` or `install`, the CLI stores source metadata next to `automation.toml`:
@@ -160,10 +160,20 @@ That sidecar records where the automation came from, which makes future update/r
 
 ## Collections
 
+Example public collection:
+
+```bash
+npx -y codex-automations add vltansky/automations --list
+npx -y codex-automations add vltansky/automations --automation morning-pr-radar --dry-run
+npx -y codex-automations add vltansky/automations --automation morning-pr-radar
+```
+
+The example repository is [vltansky/automations](https://github.com/vltansky/automations).
+
 Use `init` to connect the GitHub repository you share automations to:
 
 ```bash
-npx -y codex-automations init personal --repo vltansky/codex-automations --publish-mode push --default --yes
+npx -y codex-automations init personal --repo vltansky/automations --publish-mode push --default --yes
 npx -y codex-automations init team --repo org/codex-automations --publish-mode pr --default --yes
 ```
 
@@ -181,7 +191,7 @@ A config can contain multiple collections and one default:
   "defaultCollection": "team",
   "collections": {
     "personal": {
-      "repo": "vltansky/codex-automations",
+      "repo": "vltansky/automations",
       "path": "automations",
       "branch": "main",
       "publishMode": "push"
@@ -248,7 +258,7 @@ For example:
 ```bash
 npx -y codex-automations share morning-pr-radar
 npx -y codex-automations share morning-pr-radar --collection team
-npx -y codex-automations share morning-pr-radar --repo vltansky/codex-automations
+npx -y codex-automations share morning-pr-radar --repo vltansky/automations
 ```
 
 If the target repo does not exist, `share` can create it as a public GitHub repository. It then exports the automation into:
@@ -263,14 +273,14 @@ automations/<id>/
 It also updates the collection README so others can install with:
 
 ```bash
-npx -y codex-automations add vltansky/codex-automations --list
-npx -y codex-automations add vltansky/codex-automations --automation morning-pr-radar
+npx -y codex-automations add vltansky/automations --list
+npx -y codex-automations add vltansky/automations --automation morning-pr-radar
 ```
 
 Use `--dry-run` to preview without creating a repo, committing, or pushing:
 
 ```bash
-npx -y codex-automations share morning-pr-radar --repo vltansky/codex-automations --dry-run --json
+npx -y codex-automations share morning-pr-radar --repo vltansky/automations --dry-run --json
 ```
 
 Use `--publish-mode pr` for shared repositories where changes should go through pull requests:
@@ -282,7 +292,7 @@ npx -y codex-automations share morning-pr-radar --collection team --publish-mode
 Use `--yes` for non-interactive sharing:
 
 ```bash
-npx -y codex-automations share morning-pr-radar --repo vltansky/codex-automations --yes
+npx -y codex-automations share morning-pr-radar --repo vltansky/automations --yes
 ```
 
 ## Package Format
