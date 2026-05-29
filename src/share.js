@@ -22,7 +22,7 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
   const packagePath = `${collectionPath.replace(/^\/|\/$/g, "")}/${selectedId}`;
   const repoExists = await githubRepoExists(exec, ownerRepo);
   const repoUrl = `https://github.com/${ownerRepo}`;
-  const installCommand = `npx -y codex-automation add ${ownerRepo} --automation ${selectedId} --cwd <workspace>`;
+  const installCommand = `npx -y codex-automation add ${ownerRepo} --automation ${selectedId}`;
 
   const confirmed = options.yes || options.dryRun || await confirmShare({
     id: selectedId,
@@ -117,7 +117,7 @@ async function writeCollectionReadme(repoDir, ownerRepo) {
   const packages = await discoverPackages(repoDir);
   const rows = packages.map((pkg) => {
     const rel = path.relative(repoDir, pkg.path);
-    return `| \`${pkg.id}\` | ${pkg.title} | \`npx -y codex-automation add ${ownerRepo} --automation ${pkg.id} --cwd <workspace>\` | [${rel}](./${rel}) |`;
+    return `| \`${pkg.id}\` | ${pkg.title} | \`npx -y codex-automation add ${ownerRepo} --automation ${pkg.id}\` | [${rel}](./${rel}) |`;
   });
 
   await fs.writeFile(path.join(repoDir, "README.md"), `# Codex Automations
@@ -128,7 +128,7 @@ Shared Codex automation packages.
 
 \`\`\`bash
 npx -y codex-automation add ${ownerRepo} --list
-npx -y codex-automation add ${ownerRepo} --automation <id> --cwd <workspace>
+npx -y codex-automation add ${ownerRepo} --automation <id>
 \`\`\`
 
 ## Automations

@@ -183,7 +183,7 @@ Usage:
   npx -y codex-automation export <id> [--output <dir>] [--json]
   npx -y codex-automation inspect <dir> [--json]
   npx -y codex-automation validate <dir> [--json]
-  npx -y codex-automation install <dir> --cwd <path> [--id <id>] [--dry-run] [--replace] [--activate] [--json]
+  npx -y codex-automation install <dir> [--cwd <path>] [--id <id>] [--dry-run] [--replace] [--activate] [--json]
   npx -y codex-automation diff <id> <dir>
   npx -y codex-automation uninstall <id> [--keep-memory] [--json]
 

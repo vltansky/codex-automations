@@ -153,7 +153,7 @@ export async function exportAutomation(id, outputDir, env = process.env) {
   await fs.mkdir(outputDir, { recursive: true });
   await fs.writeFile(path.join(outputDir, MANIFEST_NAME), `${JSON.stringify(manifest, null, 2)}\n`);
   await fs.writeFile(path.join(outputDir, AUTOMATION_NAME), stringifyAutomationToml(portable));
-  await fs.writeFile(path.join(outputDir, "README.md"), `# ${manifest.title}\n\n${manifest.description}\n\nInstall with:\n\n\`\`\`bash\nnpx -y codex-automation install ${path.basename(outputDir)} --cwd /absolute/workspace\n\`\`\`\n`);
+  await fs.writeFile(path.join(outputDir, "README.md"), `# ${manifest.title}\n\n${manifest.description}\n\nInstall with:\n\n\`\`\`bash\nnpx -y codex-automation install ${path.basename(outputDir)}\n\`\`\`\n`);
   return { outputDir, manifest, automation: portable };
 }
 
@@ -171,8 +171,7 @@ export function prepareInstall(pkg, options = {}, env = process.env) {
   if (Array.isArray(automation.cwds)) {
     automation.cwds = automation.cwds.map((cwd) => {
       if (cwd === "${workspace}") {
-        if (!options.cwd) fail("requires_mapping", "Package requires --cwd for ${workspace}");
-        return path.resolve(expandHome(options.cwd));
+        return path.resolve(expandHome(options.cwd || process.cwd()));
       }
       return cwd;
     });

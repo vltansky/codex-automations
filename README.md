@@ -49,8 +49,8 @@ Install from a GitHub repository:
 
 ```bash
 npx -y codex-automation add owner/repo --list
-npx -y codex-automation add owner/repo --automation morning-pr-radar --cwd ~/Projects/vlad --dry-run
-npx -y codex-automation add owner/repo --automation morning-pr-radar --cwd ~/Projects/vlad
+npx -y codex-automation add owner/repo --automation morning-pr-radar --dry-run
+npx -y codex-automation add owner/repo --automation morning-pr-radar
 ```
 
 Share one of your local automations to a GitHub collection:
@@ -64,7 +64,7 @@ npx -y codex-automation share morning-pr-radar --repo vltansky/codex-automations
 Install from a direct GitHub path:
 
 ```bash
-npx -y codex-automation add https://github.com/owner/repo/tree/main/automations/morning-pr-radar --cwd ~/Projects/vlad
+npx -y codex-automation add https://github.com/owner/repo/tree/main/automations/morning-pr-radar
 ```
 
 Export one of your local automations:
@@ -77,8 +77,8 @@ Inspect and install a local package:
 
 ```bash
 npx -y codex-automation inspect ./morning-pr-radar.codex-automation
-npx -y codex-automation install ./morning-pr-radar.codex-automation --cwd ~/Projects/vlad --dry-run
-npx -y codex-automation install ./morning-pr-radar.codex-automation --cwd ~/Projects/vlad --id morning-pr-radar-copy
+npx -y codex-automation install ./morning-pr-radar.codex-automation --dry-run
+npx -y codex-automation install ./morning-pr-radar.codex-automation --id morning-pr-radar-copy
 ```
 
 ## Commands
@@ -91,7 +91,7 @@ npx -y codex-automation add <source> [--list] [--automation <id>] [--cwd <path>]
 npx -y codex-automation export <id> [--output <dir>] [--json]
 npx -y codex-automation inspect <dir> [--json]
 npx -y codex-automation validate <dir> [--json]
-npx -y codex-automation install <dir> --cwd <path> [--id <id>] [--dry-run] [--replace] [--activate] [--json]
+npx -y codex-automation install <dir> [--cwd <path>] [--id <id>] [--dry-run] [--replace] [--activate] [--json]
 npx -y codex-automation diff <id> <dir>
 npx -y codex-automation uninstall <id> [--keep-memory] [--json]
 ```
@@ -124,7 +124,7 @@ npx -y codex-automation add owner/repo --list
 If a source contains multiple automations, choose one with `--automation`:
 
 ```bash
-npx -y codex-automation add owner/repo --automation morning-pr-radar --cwd ~/Projects/vlad
+npx -y codex-automation add owner/repo --automation morning-pr-radar
 ```
 
 ## Sharing Automations
@@ -169,7 +169,7 @@ It also updates the collection README so others can install with:
 
 ```bash
 npx -y codex-automation add vltansky/codex-automations --list
-npx -y codex-automation add vltansky/codex-automations --automation morning-pr-radar --cwd <workspace>
+npx -y codex-automation add vltansky/codex-automations --automation morning-pr-radar
 ```
 
 Use `--dry-run` to preview without creating a repo, committing, or pushing:
@@ -257,13 +257,14 @@ By default, the CLI:
 - Excludes OAuth state, connector state, previous runs, and sessions.
 - Strips `created_at` and `updated_at` on export.
 - Converts exported local `cwds` into `${workspace}`.
-- Requires `--cwd` when installing a package that needs a workspace path.
+- Maps `${workspace}` to the current directory by default.
+- Supports `--cwd` when you want to use a different execution directory.
 - Warns about local absolute paths, connector references, and secret-looking prompt text.
 
 Activate explicitly after reviewing:
 
 ```bash
-npx -y codex-automation add owner/repo --automation morning-pr-radar --cwd ~/Projects/vlad --activate
+npx -y codex-automation add owner/repo --automation morning-pr-radar --activate
 ```
 
 ## JSON Output
@@ -272,7 +273,7 @@ Most commands support `--json` for agent and script usage:
 
 ```bash
 npx -y codex-automation add owner/repo --list --json
-npx -y codex-automation install ./morning-pr-radar.codex-automation --cwd ~/Projects/vlad --dry-run --json
+npx -y codex-automation install ./morning-pr-radar.codex-automation --dry-run --json
 ```
 
 Errors are emitted as structured JSON with a stable `code` where possible.

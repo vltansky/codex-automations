@@ -94,7 +94,7 @@ test("export creates portable package and install defaults to paused", async () 
   assert.deepEqual(listed.map((row) => row.id), ["morning-pr-radar", "radar-copy"]);
 });
 
-test("install requires workspace mapping for portable cwds", async () => {
+test("install defaults workspace mapping to current directory", async () => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
   const env = { CODEX_HOME: path.join(temp, "codex-home") };
   const sourceDir = path.join(env.CODEX_HOME, "automations", "morning-pr-radar");
@@ -105,7 +105,9 @@ test("install requires workspace mapping for portable cwds", async () => {
   await exportAutomation("morning-pr-radar", packageDir, env);
   const pkg = await readPackage(packageDir);
 
-  assert.throws(() => prepareInstall(pkg, {}, env), /Package requires --cwd/);
+  const plan = prepareInstall(pkg, {}, env);
+  assert.equal(plan.ok, true);
+  assert.deepEqual(plan.automation.cwds, [process.cwd()]);
 });
 
 test("dry-run install still detects id conflicts", async () => {
@@ -208,7 +210,7 @@ test("share dry-run plans a public collection repo without pushing", async () =>
   assert.equal(result.dryRun, true);
   assert.equal(result.wouldCreateRepo, true);
   assert.equal(result.packagePath, "automations/morning-pr-radar");
-  assert.equal(result.installCommand, "npx -y codex-automation add vltansky/codex-automations --automation morning-pr-radar --cwd <workspace>");
+  assert.equal(result.installCommand, "npx -y codex-automation add vltansky/codex-automations --automation morning-pr-radar");
   assert.equal(calls.some(([command, args]) => command === "gh" && args.includes("create")), false);
   assert.equal(calls.some(([command, args]) => command === "git" && args[0] === "push"), false);
 });
