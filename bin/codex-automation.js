@@ -19,7 +19,7 @@ main(argv).catch((error) => {
 });
 
 function hintFor(code) {
-  if (code === "id_conflict") return "Use --replace to overwrite it, or --id <new-id> to install another copy.";
+  if (code === "id_conflict") return "Use --replace to overwrite it, or --name \"My Copy\" to install a renamed copy.";
   if (code === "multiple_packages_found") return "Pass --automation <id> to choose one, or --all to install every automation.";
   if (code === "confirmation_required") return "Run in an interactive terminal, or pass --yes where supported.";
   return "";

@@ -128,12 +128,14 @@ async function addCommand(source, flags, json) {
 
     const selected = selectPackages(packages, { requested: flags.automation, all: Boolean(flags.all) });
     if (flags.id && selected.length > 1) fail("id_with_multiple_automations", "--id can only be used when installing one automation");
+    if (flags.name && selected.length > 1) fail("name_with_multiple_automations", "--name can only be used when installing one automation");
 
     const results = [];
     for (const item of selected) {
       const pkg = await readPackage(item.path);
       const result = await installPackage(pkg, {
         id: flags.id,
+        name: flags.name,
         cwd: flags.cwd,
         replace: Boolean(flags.replace),
         dryRun: Boolean(flags["dry-run"]),
@@ -179,6 +181,7 @@ async function installCommand(packagePath, flags, json) {
   const pkg = await readPackage(packagePath);
   const options = {
     id: flags.id,
+    name: flags.name,
     cwd: flags.cwd,
     replace: Boolean(flags.replace),
     dryRun: Boolean(flags["dry-run"]),
@@ -287,7 +290,7 @@ Usage:
   npx -y codex-automations list [--json]
   npx -y codex-automations show <id> [--json]
   npx -y codex-automations share [id] [--collection <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--dry-run] [--yes] [--json]
-  npx -y codex-automations add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
+  npx -y codex-automations add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
   npx -y codex-automations init [name] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--default] [--yes] [--json]
   npx -y codex-automations init --local [dir] [--repo <owner/repo>] [--json]
   npx -y codex-automations collections [list] [--json]
@@ -297,7 +300,7 @@ Usage:
   npx -y codex-automations export <id> [--output <dir>] [--json]
   npx -y codex-automations inspect <dir> [--json]
   npx -y codex-automations validate <dir> [--json]
-  npx -y codex-automations install <dir> [--cwd <path>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
+  npx -y codex-automations install <dir> [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
   npx -y codex-automations diff <id> <dir>
   npx -y codex-automations uninstall <id> [--keep-memory] [--json]
 

@@ -79,8 +79,10 @@ Inspect and install a local package:
 ```bash
 npx -y codex-automations inspect ./morning-pr-radar.codex-automation
 npx -y codex-automations install ./morning-pr-radar.codex-automation --dry-run
-npx -y codex-automations install ./morning-pr-radar.codex-automation --id morning-pr-radar-copy
+npx -y codex-automations install ./morning-pr-radar.codex-automation --name "Morning PR Radar Copy"
 ```
+
+`--name` installs a renamed copy. The CLI derives the installed automation id from that name unless you also pass the advanced `--id <id>` override.
 
 ## Commands
 
@@ -88,7 +90,7 @@ npx -y codex-automations install ./morning-pr-radar.codex-automation --id mornin
 npx -y codex-automations list [--json]
 npx -y codex-automations show <id> [--json]
 npx -y codex-automations share [id] [--collection <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--dry-run] [--yes] [--json]
-npx -y codex-automations add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
+npx -y codex-automations add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
 npx -y codex-automations init [name] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--default] [--yes] [--json]
 npx -y codex-automations init --local [dir] [--repo <owner/repo>] [--json]
 npx -y codex-automations collections [list] [--json]
@@ -98,7 +100,7 @@ npx -y codex-automations collections remove <name> [--json]
 npx -y codex-automations export <id> [--output <dir>] [--json]
 npx -y codex-automations inspect <dir> [--json]
 npx -y codex-automations validate <dir> [--json]
-npx -y codex-automations install <dir> [--cwd <path>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
+npx -y codex-automations install <dir> [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
 npx -y codex-automations diff <id> <dir>
 npx -y codex-automations uninstall <id> [--keep-memory] [--json]
 ```

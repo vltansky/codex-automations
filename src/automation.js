@@ -175,9 +175,14 @@ export function prepareInstall(pkg, options = {}, env = process.env) {
   const errors = [...manifestValidation.errors, ...automationValidation.errors];
   if (errors.length) return { ok: false, errors, warnings: [...manifestValidation.warnings, ...automationValidation.warnings] };
 
-  const id = options.id || pkg.manifest.install?.suggestedId || pkg.automation.id;
+  const id = options.id || (options.name ? slugifyName(options.name) : undefined) || pkg.manifest.install?.suggestedId || pkg.automation.id;
   const target = automationPath(id, env);
-  const automation = { ...pkg.automation, id, status: options.activate ? (pkg.automation.status || "ACTIVE") : "PAUSED" };
+  const automation = {
+    ...pkg.automation,
+    id,
+    name: options.name || pkg.automation.name,
+    status: options.activate ? (pkg.automation.status || "ACTIVE") : "PAUSED"
+  };
   const warnings = [...manifestValidation.warnings, ...automationValidation.warnings];
 
   if (Array.isArray(automation.cwds)) {
@@ -266,4 +271,14 @@ function installPreview(plan, options) {
 function expandHome(value) {
   if (typeof value === "string" && value.startsWith("~/")) return path.join(os.homedir(), value.slice(2));
   return value;
+}
+
+function slugifyName(value) {
+  const slug = String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (!slug) fail("invalid_name", "Name must contain at least one letter or number");
+  return slug;
 }

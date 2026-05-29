@@ -146,6 +146,27 @@ test("install defaults workspace mapping to current directory", async () => {
   assert.deepEqual(plan.automation.cwds, [process.cwd()]);
 });
 
+test("install name overrides display name and derives id", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  const sourceDir = path.join(env.CODEX_HOME, "automations", "morning-pr-radar");
+  await fs.mkdir(sourceDir, { recursive: true });
+  await fs.writeFile(path.join(sourceDir, "automation.toml"), sampleToml);
+
+  const packageDir = path.join(temp, "morning-pr-radar.codex-automation");
+  await exportAutomation("morning-pr-radar", packageDir, env);
+  const pkg = await readPackage(packageDir);
+
+  const plan = prepareInstall(pkg, { name: "Daily PR Radar", cwd: temp }, env);
+  assert.equal(plan.automation.id, "daily-pr-radar");
+  assert.equal(plan.automation.name, "Daily PR Radar");
+  assert.equal(plan.target, path.join(env.CODEX_HOME, "automations", "daily-pr-radar", "automation.toml"));
+
+  const explicit = prepareInstall(pkg, { id: "radar-copy", name: "Daily PR Radar", cwd: temp }, env);
+  assert.equal(explicit.automation.id, "radar-copy");
+  assert.equal(explicit.automation.name, "Daily PR Radar");
+});
+
 test("dry-run install still detects id conflicts", async () => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
   const env = { CODEX_HOME: path.join(temp, "codex-home") };
