@@ -239,6 +239,8 @@ The generated README is a catalog with `npx -y codex-automations add ...` instal
 npx -y codex-automations share
 ```
 
+Interactive prompts use a select/text/confirm flow for choosing the automation, filling missing collection details, and confirming the publish.
+
 The interactive flow:
 
 1. Lists installed automations.

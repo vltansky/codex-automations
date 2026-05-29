@@ -2,8 +2,8 @@ import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { createInterface } from "node:readline/promises";
 import { promisify } from "node:util";
+import { cancel, confirm, isCancel, note, select, text } from "@clack/prompts";
 import { exportAutomation, listAutomations, readPackage } from "./automation.js";
 import { writeCollectionReadme } from "./collection.js";
 import { resolveCollection } from "./config.js";
@@ -167,6 +167,18 @@ async function promptForAutomation(env, io) {
   const valid = automations.filter((automation) => automation.status !== "invalid");
   if (valid.length === 0) fail("no_installed_automations", "No installed Codex automations found");
 
+  if (!io.ask) {
+    const selected = await select({
+      message: "Automation to share",
+      options: valid.map((automation) => ({
+        value: automation.id,
+        label: automation.id,
+        hint: automation.name || undefined
+      }))
+    });
+    return ensureNotCancelled(selected);
+  }
+
   write(io, "Installed automations:\n");
   valid.forEach((automation, index) => {
     write(io, `  ${index + 1}. ${automation.id}${automation.name ? ` - ${automation.name}` : ""}\n`);
@@ -183,11 +195,34 @@ async function promptForAutomation(env, io) {
 
 async function promptWithDefault(label, defaultValue, io, options) {
   if (options.yes || options.dryRun) return defaultValue;
+  if (!io.ask) {
+    const answer = await text({
+      message: label,
+      defaultValue,
+      placeholder: defaultValue
+    });
+    return String(ensureNotCancelled(answer)).trim() || defaultValue;
+  }
   const answer = await ask(`${label} [${defaultValue}]`, io);
   return answer.trim() || defaultValue;
 }
 
 async function confirmShare({ id, ownerRepo, packagePath, repoExists, publishMode, installCommand, io }) {
+  if (!io.ask && !io.write) {
+    note([
+      `Automation: ${id}`,
+      `Repository: ${ownerRepo}${repoExists ? "" : " (will be created public)"}`,
+      `Package: ${packagePath}`,
+      `Publish mode: ${publishMode}`,
+      `Install: ${installCommand}`
+    ].join("\n"), "Share summary");
+    const answer = await confirm({
+      message: "Publish this automation?",
+      initialValue: false
+    });
+    return Boolean(ensureNotCancelled(answer));
+  }
+
   write(io, "\nShare summary:\n");
   write(io, `  Automation: ${id}\n`);
   write(io, `  Repository: ${ownerRepo}${repoExists ? "" : " (will be created public)"}\n`);
@@ -201,16 +236,7 @@ async function confirmShare({ id, ownerRepo, packagePath, repoExists, publishMod
 
 async function ask(question, io) {
   if (io.ask) return io.ask(question);
-  if (!process.stdin.isTTY) fail("confirmation_required", "Pass --yes for non-interactive usage");
-  const rl = createInterface({
-    input: io.input || process.stdin,
-    output: io.output || process.stdout
-  });
-  try {
-    return await rl.question(`${question} `);
-  } finally {
-    rl.close();
-  }
+  fail("confirmation_required", "Pass --yes for non-interactive usage");
 }
 
 function write(io, message) {
@@ -229,4 +255,12 @@ function assertOwnerRepo(value) {
 
 async function run(command, args, options = {}) {
   return execFileAsync(command, args, { ...options, maxBuffer: 10 * 1024 * 1024 });
+}
+
+function ensureNotCancelled(value) {
+  if (isCancel(value)) {
+    cancel("Cancelled");
+    fail("operation_cancelled", "Operation cancelled");
+  }
+  return value;
 }

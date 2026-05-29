@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createInterface } from "node:readline/promises";
+import { cancel, confirm, isCancel, text } from "@clack/prompts";
 import { upsertCollection } from "./config.js";
 import { fail } from "./errors.js";
 import { discoverPackages } from "./source.js";
@@ -103,12 +103,27 @@ function escapeCell(value) {
 
 async function promptWithDefault(label, defaultValue, io, options) {
   if (options.yes) return defaultValue;
+  if (!io.ask) {
+    const answer = await text({
+      message: label,
+      defaultValue,
+      placeholder: defaultValue
+    });
+    return String(ensureNotCancelled(answer)).trim() || defaultValue;
+  }
   const answer = await ask(`${label} [${defaultValue}]`, io);
   return answer.trim() || defaultValue;
 }
 
 async function promptBoolean(label, defaultValue, io, options) {
   if (options.yes) return defaultValue;
+  if (!io.ask) {
+    const answer = await confirm({
+      message: label,
+      initialValue: defaultValue
+    });
+    return Boolean(ensureNotCancelled(answer));
+  }
   const suffix = defaultValue ? "Y/n" : "y/N";
   const answer = (await ask(`${label} [${suffix}]`, io)).trim();
   if (!answer) return defaultValue;
@@ -117,14 +132,13 @@ async function promptBoolean(label, defaultValue, io, options) {
 
 async function ask(question, io) {
   if (io.ask) return io.ask(question);
-  if (!process.stdin.isTTY) fail("confirmation_required", "Pass --yes for non-interactive usage");
-  const rl = createInterface({
-    input: io.input || process.stdin,
-    output: io.output || process.stdout
-  });
-  try {
-    return await rl.question(`${question} `);
-  } finally {
-    rl.close();
+  fail("confirmation_required", "Pass --yes for non-interactive usage");
+}
+
+function ensureNotCancelled(value) {
+  if (isCancel(value)) {
+    cancel("Cancelled");
+    fail("operation_cancelled", "Operation cancelled");
   }
+  return value;
 }
