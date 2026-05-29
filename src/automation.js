@@ -205,12 +205,12 @@ export async function installPackage(pkg, options = {}, env = process.env) {
 
   const exists = await fs.access(plan.target).then(() => true, () => false);
   if (exists && !options.replace) fail("id_conflict", `Automation already exists at ${plan.target}`);
-  if (options.dryRun || options.diff || options.view) {
+  if (options.dryRun || options.view) {
     return {
       ...plan,
       dryRun: Boolean(options.dryRun),
       action: exists ? "replace" : "install",
-      preview: await installPreview(plan, { exists, diff: Boolean(options.diff), view: Boolean(options.view) })
+      preview: installPreview(plan, { exists, view: Boolean(options.view) })
     };
   }
 
@@ -249,7 +249,7 @@ export function diffAutomation(left, right) {
   return changes.join("\n");
 }
 
-async function installPreview(plan, options) {
+function installPreview(plan, options) {
   const nextText = stringifyAutomationToml(plan.automation);
   const preview = {
     target: plan.target,
@@ -260,26 +260,7 @@ async function installPreview(plan, options) {
     preview.automationToml = nextText;
   }
 
-  if (options.diff) {
-    const currentText = options.exists ? await fs.readFile(plan.target, "utf8") : "";
-    preview.diff = diffText(currentText, nextText) || "No differences";
-  }
-
   return preview;
-}
-
-function diffText(leftText, rightText) {
-  const a = leftText.split("\n");
-  const b = rightText.split("\n");
-  const max = Math.max(a.length, b.length);
-  const changes = [];
-  for (let index = 0; index < max; index += 1) {
-    if (a[index] !== b[index]) {
-      if (a[index] !== undefined && a[index] !== "") changes.push(`- ${a[index]}`);
-      if (b[index] !== undefined && b[index] !== "") changes.push(`+ ${b[index]}`);
-    }
-  }
-  return changes.join("\n");
 }
 
 function expandHome(value) {

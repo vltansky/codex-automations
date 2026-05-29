@@ -43,7 +43,7 @@ Install from a GitHub repository:
 
 ```bash
 npx -y codex-automations add owner/repo --list
-npx -y codex-automations add owner/repo --automation morning-pr-radar --dry-run --diff
+npx -y codex-automations add owner/repo --automation morning-pr-radar --dry-run
 npx -y codex-automations add owner/repo --automation morning-pr-radar
 ```
 
@@ -88,7 +88,7 @@ npx -y codex-automations install ./morning-pr-radar.codex-automation --id mornin
 npx -y codex-automations list [--json]
 npx -y codex-automations show <id> [--json]
 npx -y codex-automations share [id] [--collection <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--dry-run] [--yes] [--json]
-npx -y codex-automations add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--id <id>] [--dry-run] [--diff] [--view] [--replace] [--activate] [--json]
+npx -y codex-automations add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
 npx -y codex-automations init [name] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--default] [--yes] [--json]
 npx -y codex-automations init --local [dir] [--repo <owner/repo>] [--json]
 npx -y codex-automations collections [list] [--json]
@@ -98,7 +98,7 @@ npx -y codex-automations collections remove <name> [--json]
 npx -y codex-automations export <id> [--output <dir>] [--json]
 npx -y codex-automations inspect <dir> [--json]
 npx -y codex-automations validate <dir> [--json]
-npx -y codex-automations install <dir> [--cwd <path>] [--id <id>] [--dry-run] [--diff] [--view] [--replace] [--activate] [--json]
+npx -y codex-automations install <dir> [--cwd <path>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
 npx -y codex-automations diff <id> <dir>
 npx -y codex-automations uninstall <id> [--keep-memory] [--json]
 ```
@@ -144,7 +144,7 @@ npx -y codex-automations add owner/repo --all
 Preview what will be written before installing:
 
 ```bash
-npx -y codex-automations add owner/repo --automation morning-pr-radar --dry-run --diff
+npx -y codex-automations add owner/repo --automation morning-pr-radar --dry-run
 npx -y codex-automations add owner/repo --automation morning-pr-radar --dry-run --view
 ```
 

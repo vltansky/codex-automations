@@ -135,7 +135,7 @@ test("dry-run install still detects id conflicts", async () => {
   );
 });
 
-test("install preview can include diff and view output", async () => {
+test("install preview can include rendered automation output", async () => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
   const env = { CODEX_HOME: path.join(temp, "codex-home") };
   const sourceDir = path.join(env.CODEX_HOME, "automations", "morning-pr-radar");
@@ -146,10 +146,10 @@ test("install preview can include diff and view output", async () => {
   await exportAutomation("morning-pr-radar", packageDir, env);
   const pkg = await readPackage(packageDir);
 
-  const result = await installPackage(pkg, { id: "preview-radar", cwd: temp, dryRun: true, diff: true, view: true }, env);
+  const result = await installPackage(pkg, { id: "preview-radar", cwd: temp, dryRun: true, view: true }, env);
   assert.equal(result.preview.action, "install");
   assert.match(result.preview.automationToml, /id = "preview-radar"/);
-  assert.match(result.preview.diff, /\+ id = "preview-radar"/);
+  assert.equal("diff" in result.preview, false);
 });
 
 test("install writes source metadata sidecar", async () => {

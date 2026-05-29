@@ -21,7 +21,7 @@ Shared Codex automation packages.
 
 \`\`\`bash
 npx -y codex-automations add ${ownerRepo} --list
-npx -y codex-automations add ${ownerRepo} --automation <id> --dry-run --diff
+npx -y codex-automations add ${ownerRepo} --automation <id> --dry-run
 npx -y codex-automations add ${ownerRepo} --automation <id>
 \`\`\`
 
