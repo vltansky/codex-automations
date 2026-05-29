@@ -47,7 +47,7 @@ npx -y codex-automations add vltansky/automations --automation morning-pr-radar 
 npx -y codex-automations add vltansky/automations --automation morning-pr-radar
 ```
 
-Share one of your local automations to a GitHub collection:
+Share one of your local automations to a GitHub marketplace:
 
 ```bash
 npx -y codex-automations init personal --repo vltansky/automations --publish-mode push --default --yes
@@ -62,7 +62,7 @@ Install from a direct GitHub path:
 npx -y codex-automations add https://github.com/owner/repo/tree/main/automations/morning-pr-radar
 ```
 
-Connect a shared collection that publishes through pull requests:
+Connect a shared marketplace that publishes through pull requests:
 
 ```bash
 npx -y codex-automations init team --repo org/codex-automations --publish-mode pr --default --yes
@@ -89,14 +89,14 @@ npx -y codex-automations install ./morning-pr-radar.codex-automation --name "Mor
 ```text
 npx -y codex-automations list [--json]
 npx -y codex-automations show <id> [--json]
-npx -y codex-automations share [id] [--collection <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--dry-run] [--yes] [--json]
+npx -y codex-automations share [id] [--marketplace <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--dry-run] [--yes] [--json]
 npx -y codex-automations add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
 npx -y codex-automations init [name] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--default] [--yes] [--json]
 npx -y codex-automations init --local [dir] [--repo <owner/repo>] [--json]
-npx -y codex-automations collections [list] [--json]
-npx -y codex-automations collections add <name> --repo <owner/repo> [--path <dir>] [--publish-mode <push|pr>] [--default] [--json]
-npx -y codex-automations collections default <name> [--json]
-npx -y codex-automations collections remove <name> [--json]
+npx -y codex-automations marketplace [list] [--json]
+npx -y codex-automations marketplace add <name> --repo <owner/repo> [--path <dir>] [--publish-mode <push|pr>] [--default] [--json]
+npx -y codex-automations marketplace default <name> [--json]
+npx -y codex-automations marketplace remove <name> [--json]
 npx -y codex-automations export <id> [--output <dir>] [--json]
 npx -y codex-automations inspect <dir> [--json]
 npx -y codex-automations validate <dir> [--json]
@@ -104,6 +104,8 @@ npx -y codex-automations install <dir> [--cwd <path>] [--name <name>] [--id <id>
 npx -y codex-automations diff <id> <dir>
 npx -y codex-automations uninstall <id> [--keep-memory] [--json]
 ```
+
+Legacy aliases remain supported: `collections` is accepted for `marketplace`, and `--collection` is accepted for `--marketplace`.
 
 ## Source Formats
 
@@ -116,10 +118,10 @@ npx -y codex-automations add owner/repo
 # Full GitHub repository URL
 npx -y codex-automations add https://github.com/owner/repo
 
-# Direct path to a package or collection inside a repo
+# Direct path to a package or marketplace inside a repo
 npx -y codex-automations add https://github.com/owner/repo/tree/main/automations/my-automation
 
-# Local package or local collection
+# Local package or local marketplace
 npx -y codex-automations add ./my-automation.codex-automation
 npx -y codex-automations add ./automations
 ```
@@ -136,7 +138,7 @@ If a source contains multiple automations, choose one with `--automation`:
 npx -y codex-automations add owner/repo --automation morning-pr-radar
 ```
 
-You can install more than one automation by repeating `--automation`, or install the whole collection with `--all`:
+You can install more than one automation by repeating `--automation`, or install the whole marketplace with `--all`:
 
 ```bash
 npx -y codex-automations add owner/repo --automation morning-pr-radar --automation weekly-github-standup
@@ -160,9 +162,9 @@ $CODEX_HOME/automations/<id>/
 
 That sidecar records where the automation came from, which makes future update/remove flows possible without changing Codex's native TOML format.
 
-## Collections
+## Marketplaces
 
-Example public collection:
+Example public marketplace:
 
 ```bash
 npx -y codex-automations add vltansky/automations --list
@@ -179,19 +181,19 @@ npx -y codex-automations init personal --repo vltansky/automations --publish-mod
 npx -y codex-automations init team --repo org/codex-automations --publish-mode pr --default --yes
 ```
 
-Collections are stored in:
+Marketplaces are stored in:
 
 ```text
 $CODEX_HOME/codex-automations/config.json
 ```
 
-A config can contain multiple collections and one default:
+A config can contain multiple marketplaces and one default:
 
 ```json
 {
   "version": 1,
-  "defaultCollection": "team",
-  "collections": {
+  "defaultMarketplace": "team",
+  "marketplaces": {
     "personal": {
       "repo": "vltansky/automations",
       "path": "automations",
@@ -208,16 +210,16 @@ A config can contain multiple collections and one default:
 }
 ```
 
-Manage collections with:
+Manage marketplaces with:
 
 ```bash
-npx -y codex-automations collections
-npx -y codex-automations collections add team --repo org/codex-automations --publish-mode pr --default
-npx -y codex-automations collections default personal
-npx -y codex-automations collections remove team
+npx -y codex-automations marketplace
+npx -y codex-automations marketplace add team --repo org/codex-automations --publish-mode pr --default
+npx -y codex-automations marketplace default personal
+npx -y codex-automations marketplace remove team
 ```
 
-Use `--local` when you only want to scaffold collection files into a local directory:
+Use `--local` when you only want to scaffold marketplace files into a local directory:
 
 ```bash
 npx -y codex-automations init --local ./codex-automations --repo owner/codex-automations
@@ -235,23 +237,23 @@ The generated README is a catalog with `npx -y codex-automations add ...` instal
 
 ## Sharing Automations
 
-`share` publishes one of your installed Codex automations into a GitHub collection repository. If a default collection exists, `share` uses it automatically. Run it with no arguments for the guided flow:
+`share` publishes one of your installed Codex automations into a GitHub marketplace repository. If a default marketplace exists, `share` uses it automatically. Run it with no arguments for the guided flow:
 
 ```bash
 npx -y codex-automations share
 ```
 
-Interactive prompts use a select/text/confirm flow for choosing the automation, filling missing collection details, and confirming the publish.
+Interactive prompts use a select/text/confirm flow for choosing the automation, filling missing marketplace details, and confirming the publish.
 
 The interactive flow:
 
 1. Lists installed automations.
 2. Asks which automation to share.
-3. Uses the default collection when configured, or suggests `<github-user>/codex-automations`.
+3. Uses the default marketplace when configured, or suggests `<github-user>/codex-automations`.
 4. Shows the destination, publish mode, and install command.
 5. Confirms before creating a repo, committing, pushing, or opening a PR.
 
-Without a configured collection, it uses your `gh` login and targets:
+Without a configured marketplace, it uses your `gh` login and targets:
 
 ```text
 <github-user>/codex-automations
@@ -261,7 +263,7 @@ For example:
 
 ```bash
 npx -y codex-automations share morning-pr-radar
-npx -y codex-automations share morning-pr-radar --collection team
+npx -y codex-automations share morning-pr-radar --marketplace team
 npx -y codex-automations share morning-pr-radar --repo vltansky/automations
 ```
 
@@ -274,7 +276,7 @@ automations/<id>/
   README.md
 ```
 
-It also updates the collection README so others can install with:
+It also updates the marketplace README so others can install with:
 
 ```bash
 npx -y codex-automations add vltansky/automations --list
@@ -290,7 +292,7 @@ npx -y codex-automations share morning-pr-radar --repo vltansky/automations --dr
 Use `--publish-mode pr` for shared repositories where changes should go through pull requests:
 
 ```bash
-npx -y codex-automations share morning-pr-radar --collection team --publish-mode pr
+npx -y codex-automations share morning-pr-radar --marketplace team --publish-mode pr
 ```
 
 Use `--yes` for non-interactive sharing:
@@ -354,7 +356,7 @@ codex-automations/
       README.md
 ```
 
-`npx -y codex-automations add owner/repo --list` scans collections and shows the available automations.
+`npx -y codex-automations add owner/repo --list` scans marketplaces and shows the available automations.
 
 ## Safety Model
 

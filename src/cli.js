@@ -42,8 +42,11 @@ export async function main(argv) {
       return addCommand(required(args[0], "source"), flags, json);
     case "init":
       return initCommand(args, flags, json);
+    case "marketplace":
+    case "marketplaces":
+      return marketplaceCommand(args, flags, json);
     case "collections":
-      return collectionsCommand(args, flags, json);
+      return marketplaceCommand(args, flags, json, { legacy: true });
     case "inspect":
       return inspectCommand(required(args[0], "package"), json);
     case "install":
@@ -65,7 +68,7 @@ export async function main(argv) {
 async function shareCommand(id, flags, json) {
   const result = await shareAutomation(id, {
     repo: flags.repo,
-    collection: flags.collection,
+    marketplace: flags.marketplace || flags.collection,
     path: flags.path,
     publishMode: flags["publish-mode"],
     message: flags.message,
@@ -90,7 +93,7 @@ async function initCommand(args, flags, json) {
   }), json);
 }
 
-async function collectionsCommand(args, flags, json) {
+async function marketplaceCommand(args, flags, json, { legacy = false } = {}) {
   const subcommand = args[0] || "list";
   switch (subcommand) {
     case "list":
@@ -109,7 +112,7 @@ async function collectionsCommand(args, flags, json) {
     case "rm":
       return print(await removeCollection(required(args[1], "name")), json);
     default:
-      fail("unknown_subcommand", `Unknown collections command: ${subcommand}`);
+      fail("unknown_subcommand", `Unknown ${legacy ? "collections" : "marketplace"} command: ${subcommand}`);
   }
 }
 
@@ -257,11 +260,12 @@ function asArray(value) {
 
 function sourceMetadata(source, resolved, selected) {
   const parsed = resolved.source;
-  const collectionPath = path.relative(resolved.root, selected.path) || ".";
+  const marketplacePath = path.relative(resolved.root, selected.path) || ".";
   const metadata = {
     input: source,
     packageId: selected.id,
-    collectionPath
+    marketplacePath,
+    collectionPath: marketplacePath
   };
   if (parsed?.type === "github") {
     return {
@@ -289,14 +293,14 @@ function help() {
 Usage:
   npx -y codex-automations list [--json]
   npx -y codex-automations show <id> [--json]
-  npx -y codex-automations share [id] [--collection <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--dry-run] [--yes] [--json]
+  npx -y codex-automations share [id] [--marketplace <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--dry-run] [--yes] [--json]
   npx -y codex-automations add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
   npx -y codex-automations init [name] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--default] [--yes] [--json]
   npx -y codex-automations init --local [dir] [--repo <owner/repo>] [--json]
-  npx -y codex-automations collections [list] [--json]
-  npx -y codex-automations collections add <name> --repo <owner/repo> [--path <dir>] [--publish-mode <push|pr>] [--default] [--json]
-  npx -y codex-automations collections default <name> [--json]
-  npx -y codex-automations collections remove <name> [--json]
+  npx -y codex-automations marketplace [list] [--json]
+  npx -y codex-automations marketplace add <name> --repo <owner/repo> [--path <dir>] [--publish-mode <push|pr>] [--default] [--json]
+  npx -y codex-automations marketplace default <name> [--json]
+  npx -y codex-automations marketplace remove <name> [--json]
   npx -y codex-automations export <id> [--output <dir>] [--json]
   npx -y codex-automations inspect <dir> [--json]
   npx -y codex-automations validate <dir> [--json]
@@ -307,8 +311,11 @@ Usage:
 Sources:
   owner/repo
   https://github.com/owner/repo
-  https://github.com/owner/repo/tree/main/path/to/package-or-collection
-  ./local-package-or-collection
+  https://github.com/owner/repo/tree/main/path/to/package-or-marketplace
+  ./local-package-or-marketplace
+
+Aliases:
+  collections and --collection are accepted for backwards compatibility.
 
 Environment:
   CODEX_HOME defaults to ${path.join("~", ".codex")}

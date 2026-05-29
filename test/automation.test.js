@@ -314,7 +314,7 @@ test("collection README generator lists automation packages with npx commands", 
   assert.match(readme, /npx -y codex-automations add vltansky\/codex-automations --automation morning-pr-radar/);
 });
 
-test("collection config supports multiple collections and one default", async () => {
+test("marketplace config supports multiple marketplaces and one default", async () => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
   const env = { CODEX_HOME: path.join(temp, "codex-home") };
 
@@ -333,14 +333,58 @@ test("collection config supports multiple collections and one default", async ()
   await setDefaultCollection("team", env);
 
   const config = await readConfig(env);
-  assert.equal(config.defaultCollection, "team");
+  assert.equal(config.defaultMarketplace, "team");
   assert.deepEqual(listCollections(config).map((collection) => collection.name), ["personal", "team"]);
 
   await removeCollection("personal", env);
-  assert.deepEqual(Object.keys((await readConfig(env)).collections), ["team"]);
+  assert.deepEqual(Object.keys((await readConfig(env)).marketplaces), ["team"]);
 });
 
-test("connected init stores a default collection", async () => {
+test("legacy collection config is read as marketplace config", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  const configDir = path.join(env.CODEX_HOME, "codex-automations");
+  await fs.mkdir(configDir, { recursive: true });
+  await fs.writeFile(path.join(configDir, "config.json"), JSON.stringify({
+    version: 1,
+    defaultCollection: "team",
+    collections: {
+      team: {
+        repo: "wix-playground/codex-automations",
+        path: "automations",
+        branch: "main",
+        publishMode: "pr"
+      }
+    }
+  }));
+
+  const config = await readConfig(env);
+  assert.equal(config.defaultMarketplace, "team");
+  assert.deepEqual(Object.keys(config.marketplaces), ["team"]);
+});
+
+test("marketplace command aliases collection config management", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const originalEnv = process.env.CODEX_HOME;
+  const originalLog = console.log;
+  const lines = [];
+  process.env.CODEX_HOME = path.join(temp, "codex-home");
+  console.log = (message) => lines.push(message);
+  try {
+    await main(["marketplace", "add", "team", "--repo", "wix-playground/codex-automations", "--publish-mode", "pr", "--default"]);
+    await main(["marketplace", "list"]);
+  } finally {
+    console.log = originalLog;
+    if (originalEnv === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = originalEnv;
+  }
+
+  const config = await readConfig({ CODEX_HOME: path.join(temp, "codex-home") });
+  assert.equal(config.defaultMarketplace, "team");
+  assert.match(lines.join("\n"), /team\twix-playground\/codex-automations\tautomations\tpr/);
+});
+
+test("connected init stores a default marketplace", async () => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
   const env = { CODEX_HOME: path.join(temp, "codex-home") };
 
@@ -352,13 +396,13 @@ test("connected init stores a default collection", async () => {
     makeDefault: true
   }, env);
 
-  assert.equal(result.collection.name, "team");
-  assert.equal(result.collection.repo, "wix-playground/codex-automations");
-  assert.equal(result.collection.publishMode, "pr");
-  assert.equal((await readConfig(env)).defaultCollection, "team");
+  assert.equal(result.marketplace.name, "team");
+  assert.equal(result.marketplace.repo, "wix-playground/codex-automations");
+  assert.equal(result.marketplace.publishMode, "pr");
+  assert.equal((await readConfig(env)).defaultMarketplace, "team");
 });
 
-test("share uses default collection and creates a PR for pr publish mode", async () => {
+test("share uses default marketplace and creates a PR for pr publish mode", async () => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
   const env = { CODEX_HOME: path.join(temp, "codex-home") };
   await writeInstalledSample(env);
@@ -393,7 +437,7 @@ test("share uses default collection and creates a PR for pr publish mode", async
   assert.equal(calls.some(([command, args]) => command === "git" && args[0] === "push" && args.includes("main")), false);
 });
 
-test("share explicit repo does not inherit default collection publish mode", async () => {
+test("share explicit repo does not inherit default marketplace publish mode", async () => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
   const env = { CODEX_HOME: path.join(temp, "codex-home") };
   await writeInstalledSample(env);
@@ -427,7 +471,7 @@ test("share explicit repo does not inherit default collection publish mode", asy
   assert.equal(calls.some(([command, args]) => command === "gh" && args[0] === "pr"), false);
 });
 
-test("share dry-run plans a public collection repo without pushing", async () => {
+test("share dry-run plans a public marketplace repo without pushing", async () => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
   const env = { CODEX_HOME: path.join(temp, "codex-home") };
   await writeInstalledSample(env);
@@ -456,7 +500,7 @@ test("share dry-run plans a public collection repo without pushing", async () =>
   assert.equal(calls.some(([command, args]) => command === "git" && args[0] === "push"), false);
 });
 
-test("share commits and pushes into an existing collection repo", async () => {
+test("share commits and pushes into an existing marketplace repo", async () => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
   const env = { CODEX_HOME: path.join(temp, "codex-home") };
   await writeInstalledSample(env);
@@ -515,8 +559,8 @@ test("share can run as a guided interactive flow", async () => {
   assert.equal(result.repo, "vltansky/codex-automations");
   assert.equal(result.packagePath, "automations/morning-pr-radar");
   assert.equal(questions[0], "Automation to share [1-1]");
-  assert.equal(questions[1], "GitHub collection repo [vltansky/codex-automations]");
-  assert.equal(questions[2], "Collection path [automations]");
+  assert.equal(questions[1], "GitHub marketplace repo [vltansky/codex-automations]");
+  assert.equal(questions[2], "Marketplace path [automations]");
   assert.equal(questions[3], "Publish this automation? [y/N]");
   assert.equal(output.join("").includes("Share summary:"), true);
   assert.equal(calls.some(([command, args]) => command === "gh" && args.includes("create")), true);

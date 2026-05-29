@@ -47,62 +47,65 @@ export async function upsertCollection(name, collection, options = {}, env = pro
   assertCollectionName(name);
   const config = await readConfig(env);
   const normalized = normalizeCollection(collection);
-  config.collections[name] = normalized;
-  if (options.makeDefault || !config.defaultCollection) {
-    config.defaultCollection = name;
+  config.marketplaces[name] = normalized;
+  if (options.makeDefault || !config.defaultMarketplace) {
+    config.defaultMarketplace = name;
   }
   await writeConfig(config, env);
-  return { name, ...normalized, default: config.defaultCollection === name };
+  return { name, ...normalized, default: config.defaultMarketplace === name };
 }
 
 export async function setDefaultCollection(name, env = process.env) {
   const config = await readConfig(env);
-  if (!config.collections[name]) fail("collection_not_found", `Collection not found: ${name}`);
-  config.defaultCollection = name;
+  if (!config.marketplaces[name]) fail("marketplace_not_found", `Marketplace not found: ${name}`);
+  config.defaultMarketplace = name;
   await writeConfig(config, env);
-  return { name, ...config.collections[name], default: true };
+  return { name, ...config.marketplaces[name], default: true };
 }
 
 export async function removeCollection(name, env = process.env) {
   const config = await readConfig(env);
-  if (!config.collections[name]) fail("collection_not_found", `Collection not found: ${name}`);
-  delete config.collections[name];
-  if (config.defaultCollection === name) {
-    config.defaultCollection = Object.keys(config.collections).sort()[0];
+  if (!config.marketplaces[name]) fail("marketplace_not_found", `Marketplace not found: ${name}`);
+  delete config.marketplaces[name];
+  if (config.defaultMarketplace === name) {
+    config.defaultMarketplace = Object.keys(config.marketplaces).sort()[0];
   }
   await writeConfig(config, env);
-  return { name, removed: true, defaultCollection: config.defaultCollection };
+  return { name, removed: true, defaultMarketplace: config.defaultMarketplace };
 }
 
 export function listCollections(config) {
-  return Object.entries(normalizeConfig(config).collections)
+  const normalized = normalizeConfig(config);
+  return Object.entries(normalized.marketplaces)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([name, collection]) => ({
       name,
       ...collection,
-      default: normalizeConfig(config).defaultCollection === name
+      default: normalized.defaultMarketplace === name
     }));
 }
 
 export async function resolveCollection(name, env = process.env) {
   const config = await readConfig(env);
-  const selectedName = name || config.defaultCollection;
+  const selectedName = name || config.defaultMarketplace;
   if (!selectedName) return undefined;
-  const collection = config.collections[selectedName];
-  if (!collection) fail("collection_not_found", `Collection not found: ${selectedName}`);
-  return { name: selectedName, ...collection, default: config.defaultCollection === selectedName };
+  const collection = config.marketplaces[selectedName];
+  if (!collection) fail("marketplace_not_found", `Marketplace not found: ${selectedName}`);
+  return { name: selectedName, ...collection, default: config.defaultMarketplace === selectedName };
 }
 
 function normalizeConfig(config) {
+  const marketplaces = config.marketplaces || config.collections || {};
+  const defaultMarketplace = config.defaultMarketplace || config.defaultCollection;
   return {
     version: 1,
-    defaultCollection: config.defaultCollection,
-    collections: config.collections || {}
+    defaultMarketplace,
+    marketplaces
   };
 }
 
 function normalizeCollection(collection) {
-  if (!collection.repo) fail("missing_collection_repo", "Collection repo is required");
+  if (!collection.repo) fail("missing_marketplace_repo", "Marketplace repo is required");
   assertOwnerRepo(collection.repo);
   return {
     repo: collection.repo,
@@ -114,7 +117,7 @@ function normalizeCollection(collection) {
 
 function assertCollectionName(name) {
   if (!/^[A-Za-z0-9_.-]+$/.test(String(name || ""))) {
-    fail("invalid_collection_name", `Invalid collection name: ${name}`);
+    fail("invalid_marketplace_name", `Invalid marketplace name: ${name}`);
   }
 }
 

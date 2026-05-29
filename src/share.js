@@ -15,14 +15,15 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
   const exec = options.exec || run;
   const login = await getGithubLogin(exec);
   const selectedId = id || await promptForAutomation(env, io);
-  const collection = options.collection || !options.repo ? await resolveCollection(options.collection, env) : undefined;
+  const marketplaceName = options.marketplace || options.collection;
+  const marketplace = marketplaceName || !options.repo ? await resolveCollection(marketplaceName, env) : undefined;
   const defaultRepo = `${login}/codex-automations`;
-  const ownerRepo = options.repo || collection?.repo || await promptWithDefault("GitHub collection repo", defaultRepo, io, options);
+  const ownerRepo = options.repo || marketplace?.repo || await promptWithDefault("GitHub marketplace repo", defaultRepo, io, options);
   assertOwnerRepo(ownerRepo);
 
-  const collectionPath = options.path || collection?.path || await promptWithDefault("Collection path", "automations", io, options);
-  const branch = collection?.branch || "main";
-  const publishMode = options.publishMode || collection?.publishMode || "push";
+  const collectionPath = options.path || marketplace?.path || await promptWithDefault("Marketplace path", "automations", io, options);
+  const branch = marketplace?.branch || "main";
+  const publishMode = options.publishMode || marketplace?.publishMode || "push";
   if (!["push", "pr"].includes(publishMode)) fail("invalid_publish_mode", "Publish mode must be push or pr");
   const packagePath = `${collectionPath.replace(/^\/|\/$/g, "")}/${selectedId}`;
   const repoExists = await githubRepoExists(exec, ownerRepo);
@@ -68,7 +69,8 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
         repoUrl,
         installCommand,
         publishMode,
-        collection: collection?.name
+        marketplace: marketplace?.name,
+        collection: marketplace?.name
       };
     }
 
@@ -92,7 +94,7 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
     await exec("git", ["add", "README.md", packagePath], { cwd: repoDir });
     const status = (await exec("git", ["status", "--porcelain"], { cwd: repoDir })).stdout.trim();
     if (!status) {
-      return { ok: true, repo: ownerRepo, repoUrl, packagePath, changed: false, installCommand, publishMode, collection: collection?.name };
+      return { ok: true, repo: ownerRepo, repoUrl, packagePath, changed: false, installCommand, publishMode, marketplace: marketplace?.name, collection: marketplace?.name };
     }
 
     const message = options.message || `Add ${selectedId} Codex automation`;
@@ -125,7 +127,8 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
       changed: true,
       installCommand,
       publishMode,
-      collection: collection?.name
+      marketplace: marketplace?.name,
+      collection: marketplace?.name
     };
   } finally {
     if (!options.keepTemp) await fs.rm(temp, { recursive: true, force: true });

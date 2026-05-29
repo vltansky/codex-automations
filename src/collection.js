@@ -53,13 +53,13 @@ export async function initCollection(targetDir, options = {}) {
 }
 
 export async function initConnectedCollection(options = {}, env = process.env, io = {}) {
-  const name = options.name || await promptWithDefault("Collection name", "personal", io, options);
+  const name = options.name || await promptWithDefault("Marketplace name", "personal", io, options);
   const repo = options.repo || await promptWithDefault("GitHub repo", "owner/codex-automations", io, options);
-  const collectionPath = options.path || await promptWithDefault("Collection path", "automations", io, options);
+  const collectionPath = options.path || await promptWithDefault("Marketplace path", "automations", io, options);
   const publishMode = options.publishMode || await promptWithDefault("Publish mode (push/pr)", "push", io, options);
   if (!["push", "pr"].includes(publishMode)) fail("invalid_publish_mode", "Publish mode must be push or pr");
   const branch = options.branch || "main";
-  const makeDefault = options.makeDefault ?? options.default ?? await promptBoolean("Make this the default collection?", true, io, options);
+  const makeDefault = options.makeDefault ?? options.default ?? await promptBoolean("Make this the default marketplace?", true, io, options);
 
   const collection = await upsertCollection(name, {
     repo,
@@ -70,7 +70,9 @@ export async function initConnectedCollection(options = {}, env = process.env, i
 
   return {
     ok: true,
+    marketplace: collection,
     collection,
+    defaultMarketplace: makeDefault ? name : undefined,
     defaultCollection: makeDefault ? name : undefined
   };
 }
