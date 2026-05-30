@@ -4,10 +4,11 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { cancel, confirm, isCancel, note, select, text } from "@clack/prompts";
-import { exportAutomation, listAutomations, readPackage } from "./automation.js";
+import { exportAutomation, listAutomations, readInstalled, readPackage } from "./automation.js";
 import { writeCollectionReadme } from "./collection.js";
 import { resolveCollection } from "./config.js";
 import { fail } from "./errors.js";
+import { scanAutomationPrivacy } from "./privacy.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -25,10 +26,23 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
   const branch = marketplace?.branch || "main";
   const publishMode = options.publishMode || marketplace?.publishMode || "push";
   if (!["push", "pr"].includes(publishMode)) fail("invalid_publish_mode", "Publish mode must be push or pr");
+  if (options.privacyReview && !["auto", "rules", "codex", "off"].includes(options.privacyReview)) {
+    fail("invalid_privacy_review", "Privacy review must be auto, rules, codex, or off");
+  }
   const packagePath = `${collectionPath.replace(/^\/|\/$/g, "")}/${selectedId}`;
   const repoExists = await githubRepoExists(exec, ownerRepo);
   const repoUrl = `https://github.com/${ownerRepo}`;
   const installCommand = `npx -y codex-automations add ${ownerRepo} --automation ${selectedId}`;
+  const privacy = await scanBeforeShare(selectedId, {
+    ...options,
+    exec,
+    realCommandRunner: !options.exec,
+    ownerRepo,
+    packagePath
+  }, env);
+  if (!privacy.ok && !options.force) {
+    fail("privacy_scan_blocked", privacyBlockedMessage(privacy), { privacy });
+  }
 
   const confirmed = options.yes || options.dryRun || await confirmShare({
     id: selectedId,
@@ -37,6 +51,7 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
     repoExists,
     publishMode,
     installCommand,
+    privacy,
     io
   });
   if (!confirmed) fail("share_cancelled", "Share cancelled");
@@ -69,6 +84,7 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
         repoUrl,
         installCommand,
         publishMode,
+        privacy,
         marketplace: marketplace?.name,
         collection: marketplace?.name
       };
@@ -94,7 +110,7 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
     await exec("git", ["add", "README.md", packagePath], { cwd: repoDir });
     const status = (await exec("git", ["status", "--porcelain"], { cwd: repoDir })).stdout.trim();
     if (!status) {
-      return { ok: true, repo: ownerRepo, repoUrl, packagePath, changed: false, installCommand, publishMode, marketplace: marketplace?.name, collection: marketplace?.name };
+      return { ok: true, repo: ownerRepo, repoUrl, packagePath, changed: false, installCommand, publishMode, privacy, marketplace: marketplace?.name, collection: marketplace?.name };
     }
 
     const message = options.message || `Add ${selectedId} Codex automation`;
@@ -127,12 +143,41 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
       changed: true,
       installCommand,
       publishMode,
+      privacy,
       marketplace: marketplace?.name,
       collection: marketplace?.name
     };
   } finally {
     if (!options.keepTemp) await fs.rm(temp, { recursive: true, force: true });
   }
+}
+
+async function scanBeforeShare(id, options, env) {
+  if (options.privacyScan === false || options.privacyReview === "off") {
+    return {
+      ok: true,
+      reviewer: "off",
+      findings: [],
+      errors: [],
+      warnings: []
+    };
+  }
+
+  const { automation } = await readInstalled(id, env);
+  return scanAutomationPrivacy(automation, {
+    review: options.privacyReview || "auto",
+    exec: options.exec,
+    codexExec: options.codexExec,
+    realCommandRunner: options.realCommandRunner,
+    ownerRepo: options.ownerRepo,
+    packagePath: options.packagePath
+  });
+}
+
+function privacyBlockedMessage(privacy) {
+  const count = privacy.errors?.length || 0;
+  const details = privacy.errors?.slice(0, 3).map((finding) => `${finding.path}: ${finding.message}${finding.suggestion ? ` Fix: ${finding.suggestion}` : ""}`).join("; ");
+  return `Privacy scan found ${count} blocking finding${count === 1 ? "" : "s"}. ${details || "Review the automation before sharing."} Pass --force to share anyway.`;
 }
 
 async function stampSharedManifest(targetDir, ownerRepo, packagePath, repoUrl) {
@@ -210,13 +255,16 @@ async function promptWithDefault(label, defaultValue, io, options) {
   return answer.trim() || defaultValue;
 }
 
-async function confirmShare({ id, ownerRepo, packagePath, repoExists, publishMode, installCommand, io }) {
+async function confirmShare({ id, ownerRepo, packagePath, repoExists, publishMode, installCommand, privacy, io }) {
+  const privacyLine = formatPrivacyLine(privacy);
   if (!io.ask && !io.write) {
     note([
       `Automation: ${id}`,
       `Repository: ${ownerRepo}${repoExists ? "" : " (will be created public)"}`,
       `Package: ${packagePath}`,
       `Publish mode: ${publishMode}`,
+      privacyLine,
+      ...formatPrivacyFindings(privacy),
       `Install: ${installCommand}`
     ].join("\n"), "Share summary");
     const answer = await confirm({
@@ -231,10 +279,26 @@ async function confirmShare({ id, ownerRepo, packagePath, repoExists, publishMod
   write(io, `  Repository: ${ownerRepo}${repoExists ? "" : " (will be created public)"}\n`);
   write(io, `  Package: ${packagePath}\n`);
   write(io, `  Publish mode: ${publishMode}\n`);
+  write(io, `  ${privacyLine}\n`);
+  for (const line of formatPrivacyFindings(privacy)) write(io, `    - ${line}\n`);
   write(io, `  Install: ${installCommand}\n\n`);
 
   const answer = await ask("Publish this automation? [y/N]", io);
   return /^y(es)?$/i.test(answer.trim());
+}
+
+function formatPrivacyLine(privacy) {
+  if (!privacy || privacy.reviewer === "off") return "Privacy scan: skipped";
+  const blockers = privacy.errors?.length || 0;
+  const warnings = privacy.warnings?.length || 0;
+  return `Privacy scan: ${blockers} blocker${blockers === 1 ? "" : "s"}, ${warnings} warning${warnings === 1 ? "" : "s"} (${privacy.reviewer})`;
+}
+
+function formatPrivacyFindings(privacy) {
+  return (privacy?.findings || []).slice(0, 5).map((finding) => {
+    const fix = finding.suggestion ? ` Fix: ${finding.suggestion}` : "";
+    return `${finding.severity}: ${finding.path} - ${finding.message}${fix}`;
+  });
 }
 
 async function ask(question, io) {
