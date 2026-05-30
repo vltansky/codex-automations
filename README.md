@@ -1,10 +1,15 @@
 # codex-automations
 
-Share and install Codex App automations from local folders or GitHub URLs.
+Share, install, and review Codex App automations from GitHub marketplaces.
 
-`codex-automations` is a tiny CLI for making Codex automations portable. It keeps Codex's native `automation.toml` as the runtime format, then adds just enough package metadata to make automations easy to publish, inspect, validate, and install on another machine.
+```bash
+npx -y codex-automations add vltansky/automations --automation morning-pr-radar
+npx -y codex-automations share
+```
 
-It is inspired by the ergonomics of tools like `npx skills add owner/repo`, but for Codex automations.
+`codex-automations` makes Codex automations portable without replacing Codex's native runtime format. It keeps `automation.toml` as the source of truth, then adds just enough package metadata to publish, inspect, validate, and install automations safely on another machine.
+
+Inspired by tools like `npx skills add owner/repo`, but built for Codex automations.
 
 ## Why
 
@@ -25,21 +30,114 @@ That works well for one machine, but it is awkward to share:
 
 ## Install
 
+Use it with `npx`:
+
 ```bash
 npx -y codex-automations --help
 ```
 
 Requires Node.js 20 or newer.
 
-## Quickstart
+## Quickstart: Install
 
-List automations already installed in Codex:
+List automations in a marketplace:
 
 ```bash
-npx -y codex-automations list
+npx -y codex-automations add vltansky/automations --list
 ```
 
-Install from a GitHub repository:
+Preview before installing:
+
+```bash
+npx -y codex-automations add vltansky/automations --automation morning-pr-radar --dry-run
+npx -y codex-automations add vltansky/automations --automation morning-pr-radar --dry-run --view
+```
+
+Install:
+
+```bash
+npx -y codex-automations add vltansky/automations --automation morning-pr-radar
+```
+
+Install a renamed copy:
+
+```bash
+npx -y codex-automations add vltansky/automations --automation morning-pr-radar --name "Daily PR Radar"
+```
+
+`--name` sets the visible automation name and derives the installed id from that name. For example, `"Daily PR Radar"` installs as `daily-pr-radar`. Use the advanced `--id <id>` override only when you need a precise slug.
+
+## Quickstart: Share
+
+Connect your personal marketplace:
+
+```bash
+npx -y codex-automations init personal --repo vltansky/automations --publish-mode push --default --yes
+```
+
+Share one installed automation:
+
+```bash
+npx -y codex-automations share
+npx -y codex-automations share morning-pr-radar --dry-run
+npx -y codex-automations share morning-pr-radar
+```
+
+Use a PR-based marketplace for team review:
+
+```bash
+npx -y codex-automations init team --repo org/codex-automations --publish-mode pr --default --yes
+npx -y codex-automations share morning-pr-radar --marketplace team
+```
+
+## What It Looks Like
+
+The interactive `share` flow uses select, text, and confirm prompts:
+
+```text
+$ npx -y codex-automations share
+
+? Automation to share
+> morning-pr-radar (Morning PR Radar)
+  pr-approvals
+  weekly-release-notes
+
+? GitHub marketplace repo
+> vltansky/automations
+
+? Marketplace path
+> automations
+
+Share summary
+Automation: morning-pr-radar
+Repository: vltansky/automations
+Package: automations/morning-pr-radar
+Publish mode: push
+Install: npx -y codex-automations add vltansky/automations --automation morning-pr-radar
+
+? Publish this automation?
+> Yes
+```
+
+## Marketplace Model
+
+A marketplace is just a GitHub repository with one or more automation packages:
+
+```text
+automations/
+  morning-pr-radar/
+    codex-automation.json
+    automation.toml
+    README.md
+  weekly-release-notes/
+    codex-automation.json
+    automation.toml
+    README.md
+```
+
+The generated marketplace README is a catalog with `npx -y codex-automations add ...` install commands. `share` regenerates the same catalog whenever it publishes an automation.
+
+Example public marketplace:
 
 ```bash
 npx -y codex-automations add vltansky/automations --list
@@ -47,14 +145,30 @@ npx -y codex-automations add vltansky/automations --automation morning-pr-radar 
 npx -y codex-automations add vltansky/automations --automation morning-pr-radar
 ```
 
-Share one of your local automations to a GitHub marketplace:
+The example repository is [vltansky/automations](https://github.com/vltansky/automations).
+
+## Safe By Default
+
+By default, the CLI:
+
+- Installs automations as `PAUSED`.
+- Refuses to overwrite existing automations unless `--replace` is passed.
+- Excludes `memory.md`.
+- Excludes OAuth state, connector state, previous runs, and sessions.
+- Strips `created_at` and `updated_at` on export.
+- Restores install-time timestamps when writing into Codex.
+- Converts exported local `cwds` into `${workspace}`.
+- Maps `${workspace}` to the current directory by default.
+- Supports `--cwd` when you want a different execution directory.
+- Warns about local absolute paths, connector references, and secret-looking prompt text.
+
+Activate explicitly after reviewing:
 
 ```bash
-npx -y codex-automations init personal --repo vltansky/automations --publish-mode push --default --yes
-npx -y codex-automations share
-npx -y codex-automations share morning-pr-radar --dry-run
-npx -y codex-automations share morning-pr-radar
+npx -y codex-automations add owner/repo --automation morning-pr-radar --activate
 ```
+
+## Common Recipes
 
 Install from a direct GitHub path:
 
@@ -62,16 +176,22 @@ Install from a direct GitHub path:
 npx -y codex-automations add https://github.com/owner/repo/tree/main/automations/morning-pr-radar
 ```
 
-Connect a shared marketplace that publishes through pull requests:
+Install multiple automations from one marketplace:
 
 ```bash
-npx -y codex-automations init team --repo org/codex-automations --publish-mode pr --default --yes
+npx -y codex-automations add owner/repo --automation morning-pr-radar --automation weekly-github-standup
 ```
 
-Export one of your local automations:
+Install everything in a marketplace:
 
 ```bash
-npx -y codex-automations export morning-pr-radar --output ./morning-pr-radar.codex-automation
+npx -y codex-automations add owner/repo --all
+```
+
+Install into a specific workspace:
+
+```bash
+npx -y codex-automations add owner/repo --automation morning-pr-radar --cwd ~/Projects/my-workspace
 ```
 
 Inspect and install a local package:
@@ -82,30 +202,23 @@ npx -y codex-automations install ./morning-pr-radar.codex-automation --dry-run
 npx -y codex-automations install ./morning-pr-radar.codex-automation --name "Morning PR Radar Copy"
 ```
 
-`--name` installs a renamed copy. The CLI derives the installed automation id from that name unless you also pass the advanced `--id <id>` override.
+Export one of your local automations:
 
-## Commands
-
-```text
-npx -y codex-automations list [--json]
-npx -y codex-automations show <id> [--json]
-npx -y codex-automations share [id] [--marketplace <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--dry-run] [--yes] [--json]
-npx -y codex-automations add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
-npx -y codex-automations init [name] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--default] [--yes] [--json]
-npx -y codex-automations init --local [dir] [--repo <owner/repo>] [--json]
-npx -y codex-automations marketplace [list] [--json]
-npx -y codex-automations marketplace add <name> --repo <owner/repo> [--path <dir>] [--publish-mode <push|pr>] [--default] [--json]
-npx -y codex-automations marketplace default <name> [--json]
-npx -y codex-automations marketplace remove <name> [--json]
-npx -y codex-automations export <id> [--output <dir>] [--json]
-npx -y codex-automations inspect <dir> [--json]
-npx -y codex-automations validate <dir> [--json]
-npx -y codex-automations install <dir> [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
-npx -y codex-automations diff <id> <dir>
-npx -y codex-automations uninstall <id> [--keep-memory] [--json]
+```bash
+npx -y codex-automations export morning-pr-radar --output ./morning-pr-radar.codex-automation
 ```
 
-Legacy aliases remain supported: `collections` is accepted for `marketplace`, and `--collection` is accepted for `--marketplace`.
+Share to a specific marketplace:
+
+```bash
+npx -y codex-automations share morning-pr-radar --marketplace team
+```
+
+Share without prompts:
+
+```bash
+npx -y codex-automations share morning-pr-radar --repo vltansky/automations --yes
+```
 
 ## Source Formats
 
@@ -138,48 +251,7 @@ If a source contains multiple automations, choose one with `--automation`:
 npx -y codex-automations add owner/repo --automation morning-pr-radar
 ```
 
-You can install more than one automation by repeating `--automation`, or install the whole marketplace with `--all`:
-
-```bash
-npx -y codex-automations add owner/repo --automation morning-pr-radar --automation weekly-github-standup
-npx -y codex-automations add owner/repo --all
-```
-
-Preview what will be written before installing:
-
-```bash
-npx -y codex-automations add vltansky/automations --automation morning-pr-radar --dry-run
-npx -y codex-automations add vltansky/automations --automation morning-pr-radar --dry-run --view
-```
-
-When an automation is installed from `add` or `install`, the CLI stores source metadata next to `automation.toml`:
-
-```text
-$CODEX_HOME/automations/<id>/
-  automation.toml
-  codex-automation-source.json
-```
-
-That sidecar records where the automation came from, which makes future update/remove flows possible without changing Codex's native TOML format.
-
-## Marketplaces
-
-Example public marketplace:
-
-```bash
-npx -y codex-automations add vltansky/automations --list
-npx -y codex-automations add vltansky/automations --automation morning-pr-radar --dry-run
-npx -y codex-automations add vltansky/automations --automation morning-pr-radar
-```
-
-The example repository is [vltansky/automations](https://github.com/vltansky/automations).
-
-Use `init` to connect the GitHub repository you share automations to:
-
-```bash
-npx -y codex-automations init personal --repo vltansky/automations --publish-mode push --default --yes
-npx -y codex-automations init team --repo org/codex-automations --publish-mode pr --default --yes
-```
+## Marketplace Config
 
 Marketplaces are stored in:
 
@@ -219,6 +291,10 @@ npx -y codex-automations marketplace default personal
 npx -y codex-automations marketplace remove team
 ```
 
+Legacy aliases remain supported: `collections` is accepted for `marketplace`, and `--collection` is accepted for `--marketplace`.
+
+## Local Marketplace Scaffold
+
 Use `--local` when you only want to scaffold marketplace files into a local directory:
 
 ```bash
@@ -233,38 +309,14 @@ automations/.gitkeep
 .github/workflows/validate.yml
 ```
 
-The generated README is a catalog with `npx -y codex-automations add ...` install commands. `share` regenerates the same catalog whenever it publishes an automation.
+## Sharing Details
 
-## Sharing Automations
-
-`share` publishes one of your installed Codex automations into a GitHub marketplace repository. If a default marketplace exists, `share` uses it automatically. Run it with no arguments for the guided flow:
-
-```bash
-npx -y codex-automations share
-```
-
-Interactive prompts use a select/text/confirm flow for choosing the automation, filling missing marketplace details, and confirming the publish.
-
-The interactive flow:
-
-1. Lists installed automations.
-2. Asks which automation to share.
-3. Uses the default marketplace when configured, or suggests `<github-user>/codex-automations`.
-4. Shows the destination, publish mode, and install command.
-5. Confirms before creating a repo, committing, pushing, or opening a PR.
+`share` publishes one of your installed Codex automations into a GitHub marketplace repository. If a default marketplace exists, `share` uses it automatically.
 
 Without a configured marketplace, it uses your `gh` login and targets:
 
 ```text
 <github-user>/codex-automations
-```
-
-For example:
-
-```bash
-npx -y codex-automations share morning-pr-radar
-npx -y codex-automations share morning-pr-radar --marketplace team
-npx -y codex-automations share morning-pr-radar --repo vltansky/automations
 ```
 
 If the target repo does not exist, `share` can create it as a public GitHub repository. It then exports the automation into:
@@ -274,13 +326,6 @@ automations/<id>/
   codex-automation.json
   automation.toml
   README.md
-```
-
-It also updates the marketplace README so others can install with:
-
-```bash
-npx -y codex-automations add vltansky/automations --list
-npx -y codex-automations add vltansky/automations --automation morning-pr-radar
 ```
 
 Use `--dry-run` to preview without creating a repo, committing, or pushing:
@@ -293,12 +338,6 @@ Use `--publish-mode pr` for shared repositories where changes should go through 
 
 ```bash
 npx -y codex-automations share morning-pr-radar --marketplace team --publish-mode pr
-```
-
-Use `--yes` for non-interactive sharing:
-
-```bash
-npx -y codex-automations share morning-pr-radar --repo vltansky/automations --yes
 ```
 
 ## Package Format
@@ -341,24 +380,7 @@ my-automation.codex-automation/
 }
 ```
 
-Repositories can contain one package or many packages:
-
-```text
-codex-automations/
-  automations/
-    morning-pr-radar/
-      codex-automation.json
-      automation.toml
-      README.md
-    weekly-release-notes/
-      codex-automation.json
-      automation.toml
-      README.md
-```
-
-`npx -y codex-automations add owner/repo --list` scans marketplaces and shows the available automations.
-
-## Safety Model
+## Installed Files
 
 Installs write only automation files and source metadata:
 
@@ -368,23 +390,7 @@ $CODEX_HOME/automations/<id>/
   codex-automation-source.json
 ```
 
-By default, the CLI:
-
-- Installs automations as `PAUSED`.
-- Refuses to overwrite existing automations unless `--replace` is passed.
-- Excludes `memory.md`.
-- Excludes OAuth state, connector state, previous runs, and sessions.
-- Strips `created_at` and `updated_at` on export.
-- Converts exported local `cwds` into `${workspace}`.
-- Maps `${workspace}` to the current directory by default.
-- Supports `--cwd` when you want to use a different execution directory.
-- Warns about local absolute paths, connector references, and secret-looking prompt text.
-
-Activate explicitly after reviewing:
-
-```bash
-npx -y codex-automations add owner/repo --automation morning-pr-radar --activate
-```
+The source sidecar records where the automation came from, which makes future update/remove flows possible without changing Codex's native TOML format.
 
 ## JSON Output
 
@@ -396,6 +402,37 @@ npx -y codex-automations install ./morning-pr-radar.codex-automation --dry-run -
 ```
 
 Errors are emitted as structured JSON with a stable `code` where possible.
+
+## Command Reference
+
+```text
+npx -y codex-automations list [--json]
+npx -y codex-automations show <id> [--json]
+npx -y codex-automations share [id] [--marketplace <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--dry-run] [--yes] [--json]
+npx -y codex-automations add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
+npx -y codex-automations init [name] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--default] [--yes] [--json]
+npx -y codex-automations init --local [dir] [--repo <owner/repo>] [--json]
+npx -y codex-automations marketplace [list] [--json]
+npx -y codex-automations marketplace add <name> --repo <owner/repo> [--path <dir>] [--publish-mode <push|pr>] [--default] [--json]
+npx -y codex-automations marketplace default <name> [--json]
+npx -y codex-automations marketplace remove <name> [--json]
+npx -y codex-automations export <id> [--output <dir>] [--json]
+npx -y codex-automations inspect <dir> [--json]
+npx -y codex-automations validate <dir> [--json]
+npx -y codex-automations install <dir> [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
+npx -y codex-automations diff <id> <dir>
+npx -y codex-automations uninstall <id> [--keep-memory] [--json]
+```
+
+## Read Next
+
+- [Quickstart: Install](#quickstart-install)
+- [Quickstart: Share](#quickstart-share)
+- [Marketplace Model](#marketplace-model)
+- [Safe By Default](#safe-by-default)
+- [Common Recipes](#common-recipes)
+- [Package Format](#package-format)
+- [Command Reference](#command-reference)
 
 ## Development
 
