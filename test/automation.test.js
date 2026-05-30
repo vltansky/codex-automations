@@ -22,6 +22,7 @@ import {
   upsertCollection
 } from "../src/config.js";
 import { initCollection, initConnectedCollection, writeCollectionReadme } from "../src/collection.js";
+import { deterministicPrivacyScan } from "../src/privacy.js";
 import { shareAutomation } from "../src/share.js";
 import { discoverPackages, parseSource, selectPackage, selectPackages } from "../src/source.js";
 import { parseAutomationToml, stringifyAutomationToml } from "../src/toml.js";
@@ -97,6 +98,19 @@ test("validates installed automation shape", () => {
   const validation = validateAutomation(parseAutomationToml(sampleToml));
   assert.equal(validation.ok, true);
   assert.deepEqual(validation.errors, []);
+});
+
+test("privacy scan detects local paths and inline secrets", () => {
+  const result = deterministicPrivacyScan({
+    id: "daily-summary",
+    name: "Daily Summary",
+    prompt: "Read /Users/alice/Projects/acme and use api_key = \"abcdefghijklmnop\".",
+    cwds: ["/Users/alice/Projects/acme"]
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors.some((finding) => finding.code === "secret_assignment"), true);
+  assert.equal(result.warnings.some((finding) => finding.code === "local_path"), true);
 });
 
 test("export creates portable package and install defaults to paused", async () => {
@@ -504,6 +518,89 @@ test("share dry-run plans a public marketplace repo without pushing", async () =
   assert.equal(calls.some(([command, args]) => command === "git" && args[0] === "push"), false);
 });
 
+test("share blocks automation with secret-like personal details", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  await writeInstalledToml(env, sampleToml.replace("Line two", "api_token = \"abcdefghijklmnop\""));
+
+  await assert.rejects(
+    () => shareAutomation("morning-pr-radar", {
+      repo: "vltansky/codex-automations",
+      dryRun: true,
+      exec: async (command, args) => {
+        if (command === "gh" && args[0] === "api") return { stdout: "vltansky\n", stderr: "" };
+        if (command === "gh" && args[0] === "repo" && args[1] === "view") throw new Error("not found");
+        return { stdout: "", stderr: "" };
+      }
+    }, env),
+    /Privacy scan found 1 blocking finding/
+  );
+});
+
+test("share can force past privacy scan findings", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  await writeInstalledToml(env, sampleToml.replace("Line two", "api_token = \"abcdefghijklmnop\""));
+
+  const result = await shareAutomation("morning-pr-radar", {
+    repo: "vltansky/codex-automations",
+    dryRun: true,
+    force: true,
+    exec: async (command, args, options = {}) => {
+      if (command === "gh" && args[0] === "api") return { stdout: "vltansky\n", stderr: "" };
+      if (command === "gh" && args[0] === "repo" && args[1] === "view") throw new Error("not found");
+      if (command === "git" && args[0] === "init") {
+        await fs.mkdir(options.cwd, { recursive: true });
+        return { stdout: "", stderr: "" };
+      }
+      return { stdout: "", stderr: "" };
+    }
+  }, env);
+
+  assert.equal(result.dryRun, true);
+  assert.equal(result.privacy.ok, false);
+  assert.equal(result.privacy.errors.length, 1);
+});
+
+test("share can use Codex CLI privacy review when requested", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  await writeInstalledSample(env);
+
+  const result = await shareAutomation("morning-pr-radar", {
+    repo: "vltansky/codex-automations",
+    dryRun: true,
+    privacyReview: "codex",
+    exec: async (command, args, options = {}) => {
+      if (command === "gh" && args[0] === "api") return { stdout: "vltansky\n", stderr: "" };
+      if (command === "gh" && args[0] === "repo" && args[1] === "view") throw new Error("not found");
+      if (command === "git" && args[0] === "init") {
+        await fs.mkdir(options.cwd, { recursive: true });
+        return { stdout: "", stderr: "" };
+      }
+      if (command === "codex" && args[0] === "--version") return { stdout: "codex 1.0.0\n", stderr: "" };
+      if (command === "codex" && args[0] === "exec") {
+        const outputPath = args[args.indexOf("-o") + 1];
+        await fs.writeFile(outputPath, JSON.stringify({
+          findings: [{
+            severity: "warning",
+            code: "private_repo",
+            path: "prompt",
+            match: "private/repo",
+            message: "Mentions a private repository.",
+            suggestion: "Replace it with a placeholder."
+          }]
+        }));
+        return { stdout: "", stderr: "" };
+      }
+      return { stdout: "", stderr: "" };
+    }
+  }, env);
+
+  assert.equal(result.privacy.reviewer, "rules+codex");
+  assert.equal(result.privacy.findings.some((finding) => finding.code === "private_repo"), true);
+});
+
 test("share commits and pushes into an existing marketplace repo", async () => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
   const env = { CODEX_HOME: path.join(temp, "codex-home") };
@@ -616,7 +713,11 @@ test("share cancellation stops before export and remote writes", async () => {
 });
 
 async function writeInstalledSample(env, id = "morning-pr-radar", name = "Morning PR Radar") {
+  await writeInstalledToml(env, sampleToml.replace('id = "morning-pr-radar"', `id = "${id}"`).replace('name = "Morning PR Radar"', `name = "${name}"`), id);
+}
+
+async function writeInstalledToml(env, toml, id = "morning-pr-radar") {
   const sourceDir = path.join(env.CODEX_HOME, "automations", id);
   await fs.mkdir(sourceDir, { recursive: true });
-  await fs.writeFile(path.join(sourceDir, "automation.toml"), sampleToml.replace('id = "morning-pr-radar"', `id = "${id}"`).replace('name = "Morning PR Radar"', `name = "${name}"`));
+  await fs.writeFile(path.join(sourceDir, "automation.toml"), toml);
 }

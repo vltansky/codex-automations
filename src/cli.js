@@ -73,7 +73,10 @@ async function shareCommand(id, flags, json) {
     publishMode: flags["publish-mode"],
     message: flags.message,
     yes: Boolean(flags.yes),
-    dryRun: Boolean(flags["dry-run"])
+    dryRun: Boolean(flags["dry-run"]),
+    privacyScan: !flags["no-privacy-scan"],
+    privacyReview: flags["privacy-review"],
+    force: Boolean(flags.force)
   });
   return print(result, json);
 }
@@ -218,7 +221,7 @@ function parseArgs(argv) {
       continue;
     }
     const key = item.slice(2);
-    if (["json", "dry-run", "replace", "activate", "keep-memory", "list", "yes", "help", "all", "view", "local", "default"].includes(key)) {
+    if (["json", "dry-run", "replace", "activate", "keep-memory", "list", "yes", "help", "all", "view", "local", "default", "force", "no-privacy-scan"].includes(key)) {
       flags[key] = true;
     } else if (key === "automation") {
       const value = required(argv[index + 1], key);
@@ -293,7 +296,7 @@ function help() {
 Usage:
   npx -y codex-automations list [--json]
   npx -y codex-automations show <id> [--json]
-  npx -y codex-automations share [id] [--marketplace <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--dry-run] [--yes] [--json]
+  npx -y codex-automations share [id] [--marketplace <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--privacy-review <auto|rules|codex|off>] [--no-privacy-scan] [--force] [--dry-run] [--yes] [--json]
   npx -y codex-automations add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
   npx -y codex-automations init [name] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--default] [--yes] [--json]
   npx -y codex-automations init --local [dir] [--repo <owner/repo>] [--json]

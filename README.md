@@ -334,6 +334,14 @@ Use `--dry-run` to preview without creating a repo, committing, or pushing:
 npx -y codex-automations share morning-pr-radar --repo vltansky/automations --dry-run --json
 ```
 
+Before publishing, `share` scans the automation for things that are easy to leak by accident: local paths, email addresses, connector references, and secret-like values. When the Codex CLI is available, the default `auto` mode also asks Codex to review the automation and propose fixes.
+
+```bash
+npx -y codex-automations share morning-pr-radar --privacy-review codex --dry-run --json
+```
+
+Secret-like findings block publishing. Use `--force` only after reviewing the findings. Use `--privacy-review rules` for local pattern checks only, or `--privacy-review off` / `--no-privacy-scan` when you intentionally want to skip this guard.
+
 Use `--publish-mode pr` for shared repositories where changes should go through pull requests:
 
 ```bash
@@ -408,7 +416,7 @@ Errors are emitted as structured JSON with a stable `code` where possible.
 ```text
 npx -y codex-automations list [--json]
 npx -y codex-automations show <id> [--json]
-npx -y codex-automations share [id] [--marketplace <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--dry-run] [--yes] [--json]
+npx -y codex-automations share [id] [--marketplace <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--privacy-review <auto|rules|codex|off>] [--no-privacy-scan] [--force] [--dry-run] [--yes] [--json]
 npx -y codex-automations add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
 npx -y codex-automations init [name] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--default] [--yes] [--json]
 npx -y codex-automations init --local [dir] [--repo <owner/repo>] [--json]
