@@ -121,12 +121,15 @@ async function addCommand(source, flags, json) {
   try {
     const packages = await discoverPackages(resolved.root);
     if (flags.list) {
-      return print(packages.map((pkg) => ({
+      const rows = packages.map((pkg) => ({
         id: pkg.id,
         title: pkg.title,
         name: pkg.name,
-        path: pkg.path
-      })), json);
+        path: pkg.path,
+        marketplacePath: displayPackagePath(resolved, pkg),
+        collectionPath: displayPackagePath(resolved, pkg)
+      }));
+      return json ? print(rows, json) : printPackageList(rows, source);
     }
 
     const selected = selectPackages(packages, { requested: flags.automation, all: Boolean(flags.all) });
@@ -149,7 +152,8 @@ async function addCommand(source, flags, json) {
       if (!result.ok) process.exitCode = 1;
       results.push({ ...result, source, selected: item.id });
     }
-    return print(results.length === 1 ? results[0] : results, json);
+    const value = results.length === 1 ? results[0] : results;
+    return json ? print(value, json) : printInstallResult(value);
   } finally {
     await resolved.cleanup();
   }
@@ -199,7 +203,7 @@ async function installCommand(packagePath, flags, json) {
   };
   const result = await installPackage(pkg, options);
   if (!result.ok) process.exitCode = 1;
-  return print(result, json);
+  return json ? print(result, json) : printInstallResult(result);
 }
 
 async function diffCommand(id, packagePath) {
@@ -252,6 +256,69 @@ function print(value, json) {
     return;
   }
   console.log(JSON.stringify(value, null, 2));
+}
+
+function printPackageList(rows, source) {
+  console.log(`Automations in ${source}:`);
+  for (const row of rows) {
+    console.log(`- ${row.id}: ${row.title} (${row.marketplacePath || row.path})`);
+  }
+  console.log("");
+  console.log("Install one with:");
+  console.log(`  npx -y codex-automations add ${source} --automation <id>`);
+}
+
+function printInstallResult(value) {
+  const results = Array.isArray(value) ? value : [value];
+  for (const result of results) {
+    if (!result.ok) {
+      console.log(`Could not install ${result.selected || result.automation?.id || "automation"}.`);
+      printValidationMessages("Errors", result.errors);
+      printValidationMessages("Warnings", result.warnings);
+      continue;
+    }
+
+    const id = result.automation?.id || result.selected || "automation";
+    const name = result.automation?.name;
+    const label = name && name !== id ? `${name} (${id})` : id;
+    const action = result.dryRun ? `Would ${result.action || "install"}` : result.installed ? "Installed" : titleCase(result.action || "Prepared");
+    console.log(`${action}: ${label}`);
+    if (result.source) console.log(`Source: ${result.source}${result.selected ? ` --automation ${result.selected}` : ""}`);
+    if (result.target) console.log(`Target: ${result.target}`);
+    if (result.automation?.status) console.log(`Status: ${result.automation.status}`);
+    if (Array.isArray(result.automation?.cwds) && result.automation.cwds.length > 0) {
+      console.log(`Workspace: ${result.automation.cwds.join(", ")}`);
+    }
+    printValidationMessages("Warnings", result.warnings);
+    if (result.dryRun) {
+      console.log("");
+      console.log("No files were written.");
+    }
+    if (result.preview?.automationToml) {
+      console.log("");
+      console.log("automation.toml preview:");
+      console.log("```toml");
+      console.log(result.preview.automationToml.trimEnd());
+      console.log("```");
+    }
+  }
+}
+
+function printValidationMessages(label, messages = []) {
+  if (!messages.length) return;
+  console.log(`${label}:`);
+  for (const item of messages) {
+    console.log(`- ${item.code ? `${item.code}: ` : ""}${item.message || item}`);
+  }
+}
+
+function displayPackagePath(resolved, pkg) {
+  const relative = path.relative(resolved.root, pkg.path) || ".";
+  return relative.split(path.sep).join("/");
+}
+
+function titleCase(value) {
+  return value.slice(0, 1).toUpperCase() + value.slice(1);
 }
 
 function asArray(value) {

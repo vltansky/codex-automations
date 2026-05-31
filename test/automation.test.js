@@ -295,6 +295,56 @@ test("selectPackage rejects ambiguous collections until automation is specified"
   assert.throws(() => selectPackage(packages, "missing"), /Automation not found/);
 });
 
+test("add list prints package paths without temp clone internals", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  const originalLog = console.log;
+  const lines = [];
+  await writeInstalledSample(env);
+  await exportAutomation("morning-pr-radar", path.join(temp, "repo", "automations", "morning-pr-radar"), env);
+
+  console.log = (message) => lines.push(message);
+  try {
+    await main(["add", path.join(temp, "repo"), "--list"]);
+  } finally {
+    console.log = originalLog;
+  }
+
+  const output = lines.join("\n");
+  const packageLine = lines.find((line) => line.includes("morning-pr-radar"));
+  assert.match(output, /Automations in /);
+  assert.match(output, /morning-pr-radar: Morning PR Radar \(automations\/morning-pr-radar\)/);
+  assert.doesNotMatch(packageLine, new RegExp(escapeRegExp(temp)));
+  assert.doesNotMatch(output, /^\[/m);
+});
+
+test("add dry-run prints a human install summary unless json is requested", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  const originalCodexHome = process.env.CODEX_HOME;
+  const originalLog = console.log;
+  const lines = [];
+  await writeInstalledSample(env);
+  await exportAutomation("morning-pr-radar", path.join(temp, "repo", "automations", "morning-pr-radar"), env);
+
+  process.env.CODEX_HOME = path.join(temp, "install-home");
+  console.log = (message) => lines.push(message);
+  try {
+    await main(["add", path.join(temp, "repo"), "--automation", "morning-pr-radar", "--dry-run", "--view", "--cwd", path.join(temp, "workspace")]);
+  } finally {
+    console.log = originalLog;
+    if (originalCodexHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = originalCodexHome;
+  }
+
+  const output = lines.join("\n");
+  assert.match(output, /^Would install: Morning PR Radar \(morning-pr-radar\)/m);
+  assert.match(output, /Status: PAUSED/);
+  assert.match(output, /No files were written\./);
+  assert.match(output, /automation\.toml preview:/);
+  assert.doesNotMatch(output, /^\{/);
+});
+
 test("collection init scaffolds readme and validation workflow", async () => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
   const result = await initCollection(path.join(temp, "collection"), { repo: "vltansky/codex-automations" });
@@ -619,4 +669,8 @@ async function writeInstalledSample(env, id = "morning-pr-radar", name = "Mornin
   const sourceDir = path.join(env.CODEX_HOME, "automations", id);
   await fs.mkdir(sourceDir, { recursive: true });
   await fs.writeFile(path.join(sourceDir, "automation.toml"), sampleToml.replace('id = "morning-pr-radar"', `id = "${id}"`).replace('name = "Morning PR Radar"', `name = "${name}"`));
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
