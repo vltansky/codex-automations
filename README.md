@@ -59,6 +59,12 @@ Install:
 npx -y codex-automations add owner/automations --automation daily-standup
 ```
 
+Install and activate immediately:
+
+```bash
+npx -y codex-automations add owner/automations --automation daily-standup -y
+```
+
 Install a renamed copy:
 
 ```bash
@@ -162,6 +168,7 @@ The installed automation is paused by default, so you can review it before activ
 By default, the CLI:
 
 - Installs automations as `PAUSED`.
+- Asks whether to enable the automation when running interactively.
 - Refuses to overwrite existing automations unless `--replace` is passed.
 - Excludes `memory.md`.
 - Excludes OAuth state, connector state, previous runs, and sessions.
@@ -176,6 +183,12 @@ Activate explicitly after reviewing:
 
 ```bash
 npx -y codex-automations add owner/repo --automation daily-standup --activate
+```
+
+For a non-interactive active install, pass `-y` or `--yes`:
+
+```bash
+npx -y codex-automations add owner/repo --automation daily-standup -y
 ```
 
 ## Common Recipes
@@ -419,7 +432,7 @@ Errors are emitted as structured JSON with a stable `code` where possible.
 npx -y codex-automations list [--json]
 npx -y codex-automations show <id> [--json]
 npx -y codex-automations share [id] [--marketplace <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--dry-run] [--yes] [--json]
-npx -y codex-automations add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
+npx -y codex-automations add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [-y|--yes] [--json]
 npx -y codex-automations init [name] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--default] [--yes] [--json]
 npx -y codex-automations init --local [dir] [--repo <owner/repo>] [--json]
 npx -y codex-automations marketplace [list] [--json]
@@ -429,7 +442,7 @@ npx -y codex-automations marketplace remove <name> [--json]
 npx -y codex-automations export <id> [--output <dir>] [--json]
 npx -y codex-automations inspect <dir> [--json]
 npx -y codex-automations validate <dir> [--json]
-npx -y codex-automations install <dir> [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
+npx -y codex-automations install <dir> [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [-y|--yes] [--json]
 npx -y codex-automations diff <id> <dir>
 npx -y codex-automations uninstall <id> [--keep-memory] [--json]
 ```

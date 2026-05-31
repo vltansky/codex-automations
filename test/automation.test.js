@@ -345,6 +345,50 @@ test("add dry-run prints a human install summary unless json is requested", asyn
   assert.doesNotMatch(output, /^\{/);
 });
 
+test("add -y installs the selected automation as active", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  const originalCodexHome = process.env.CODEX_HOME;
+  const originalLog = console.log;
+  await writeInstalledSample(env);
+  await exportAutomation("morning-pr-radar", path.join(temp, "repo", "automations", "morning-pr-radar"), env);
+
+  process.env.CODEX_HOME = path.join(temp, "install-home");
+  console.log = () => {};
+  try {
+    await main(["add", path.join(temp, "repo"), "--automation", "morning-pr-radar", "-y", "--cwd", path.join(temp, "workspace")]);
+  } finally {
+    console.log = originalLog;
+    if (originalCodexHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = originalCodexHome;
+  }
+
+  const installedToml = await fs.readFile(path.join(temp, "install-home", "automations", "morning-pr-radar", "automation.toml"), "utf8");
+  assert.equal(parseAutomationToml(installedToml).status, "ACTIVE");
+});
+
+test("add --yes installs the selected automation as active", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  const originalCodexHome = process.env.CODEX_HOME;
+  const originalLog = console.log;
+  await writeInstalledSample(env);
+  await exportAutomation("morning-pr-radar", path.join(temp, "repo", "automations", "morning-pr-radar"), env);
+
+  process.env.CODEX_HOME = path.join(temp, "install-home");
+  console.log = () => {};
+  try {
+    await main(["add", path.join(temp, "repo"), "--automation", "morning-pr-radar", "--yes", "--cwd", path.join(temp, "workspace")]);
+  } finally {
+    console.log = originalLog;
+    if (originalCodexHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = originalCodexHome;
+  }
+
+  const installedToml = await fs.readFile(path.join(temp, "install-home", "automations", "morning-pr-radar", "automation.toml"), "utf8");
+  assert.equal(parseAutomationToml(installedToml).status, "ACTIVE");
+});
+
 test("collection init scaffolds readme and validation workflow", async () => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
   const result = await initCollection(path.join(temp, "collection"), { repo: "vltansky/codex-automations" });

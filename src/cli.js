@@ -1,4 +1,5 @@
 import path from "node:path";
+import { cancel, confirm, isCancel } from "@clack/prompts";
 import {
   diffAutomation,
   exportAutomation,
@@ -139,6 +140,7 @@ async function addCommand(source, flags, json) {
     const results = [];
     for (const item of selected) {
       const pkg = await readPackage(item.path);
+      const activate = await resolveActivation(pkg, flags, json);
       const result = await installPackage(pkg, {
         id: flags.id,
         name: flags.name,
@@ -146,7 +148,7 @@ async function addCommand(source, flags, json) {
         replace: Boolean(flags.replace),
         dryRun: Boolean(flags["dry-run"]),
         view: Boolean(flags.view),
-        activate: Boolean(flags.activate),
+        activate,
         source: sourceMetadata(source, resolved, item)
       });
       if (!result.ok) process.exitCode = 1;
@@ -186,6 +188,7 @@ async function validateCommand(packagePath, json) {
 
 async function installCommand(packagePath, flags, json) {
   const pkg = await readPackage(packagePath);
+  const activate = await resolveActivation(pkg, flags, json);
   const options = {
     id: flags.id,
     name: flags.name,
@@ -193,7 +196,7 @@ async function installCommand(packagePath, flags, json) {
     replace: Boolean(flags.replace),
     dryRun: Boolean(flags["dry-run"]),
     view: Boolean(flags.view),
-    activate: Boolean(flags.activate),
+    activate,
     source: {
       type: "local",
       input: packagePath,
@@ -217,6 +220,10 @@ function parseArgs(argv) {
   const flags = {};
   for (let index = 0; index < argv.length; index += 1) {
     const item = argv[index];
+    if (item === "-y") {
+      flags.yes = true;
+      continue;
+    }
     if (!item.startsWith("--")) {
       args.push(item);
       continue;
@@ -239,6 +246,26 @@ function parseArgs(argv) {
 function required(value, label) {
   if (!value) fail("missing_argument", `Missing required argument: ${label}`);
   return value;
+}
+
+async function resolveActivation(pkg, flags, json) {
+  if (flags.activate || flags.yes) return true;
+  if (flags["dry-run"] || flags.view || json || !isInteractiveTerminal()) return false;
+
+  const title = pkg.manifest.title || pkg.automation.name || pkg.automation.id || "this automation";
+  const answer = await confirm({
+    message: `Enable ${title} after installing?`,
+    initialValue: false
+  });
+  if (isCancel(answer)) {
+    cancel("Install cancelled");
+    fail("install_cancelled", "Install cancelled");
+  }
+  return Boolean(answer);
+}
+
+function isInteractiveTerminal() {
+  return Boolean(process.stdin.isTTY && process.stdout.isTTY);
 }
 
 function print(value, json) {
@@ -361,7 +388,7 @@ Usage:
   npx -y codex-automations list [--json]
   npx -y codex-automations show <id> [--json]
   npx -y codex-automations share [id] [--marketplace <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--dry-run] [--yes] [--json]
-  npx -y codex-automations add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
+  npx -y codex-automations add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [-y|--yes] [--json]
   npx -y codex-automations init [name] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--default] [--yes] [--json]
   npx -y codex-automations init --local [dir] [--repo <owner/repo>] [--json]
   npx -y codex-automations marketplace [list] [--json]
@@ -371,7 +398,7 @@ Usage:
   npx -y codex-automations export <id> [--output <dir>] [--json]
   npx -y codex-automations inspect <dir> [--json]
   npx -y codex-automations validate <dir> [--json]
-  npx -y codex-automations install <dir> [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [--json]
+  npx -y codex-automations install <dir> [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [-y|--yes] [--json]
   npx -y codex-automations diff <id> <dir>
   npx -y codex-automations uninstall <id> [--keep-memory] [--json]
 
@@ -383,6 +410,7 @@ Sources:
 
 Aliases:
   collections and --collection are accepted for backwards compatibility.
+  -y and --yes activate installed automations without prompting.
 
 Environment:
   CODEX_HOME defaults to ${path.join("~", ".codex")}
