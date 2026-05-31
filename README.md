@@ -3,7 +3,7 @@
 Share, install, and review Codex App automations from GitHub marketplaces.
 
 ```bash
-npx -y codex-automations add vltansky/automations --automation morning-pr-radar
+npx -y codex-automations add owner/automations --automation daily-standup
 npx -y codex-automations share
 ```
 
@@ -43,51 +43,51 @@ Requires Node.js 20 or newer.
 List automations in a marketplace:
 
 ```bash
-npx -y codex-automations add vltansky/automations --list
+npx -y codex-automations add owner/automations --list
 ```
 
 Preview before installing:
 
 ```bash
-npx -y codex-automations add vltansky/automations --automation morning-pr-radar --dry-run
-npx -y codex-automations add vltansky/automations --automation morning-pr-radar --dry-run --view
+npx -y codex-automations add owner/automations --automation daily-standup --dry-run
+npx -y codex-automations add owner/automations --automation daily-standup --dry-run --view
 ```
 
 Install:
 
 ```bash
-npx -y codex-automations add vltansky/automations --automation morning-pr-radar
+npx -y codex-automations add owner/automations --automation daily-standup
 ```
 
 Install a renamed copy:
 
 ```bash
-npx -y codex-automations add vltansky/automations --automation morning-pr-radar --name "Daily PR Radar"
+npx -y codex-automations add owner/automations --automation daily-standup --name "Team Standup"
 ```
 
-`--name` sets the visible automation name and derives the installed id from that name. For example, `"Daily PR Radar"` installs as `daily-pr-radar`. Use the advanced `--id <id>` override only when you need a precise slug.
+`--name` sets the visible automation name and derives the installed id from that name. For example, `"Team Standup"` installs as `team-standup`. Use the advanced `--id <id>` override only when you need a precise slug.
 
 ## Quickstart: Share
 
 Connect your personal marketplace:
 
 ```bash
-npx -y codex-automations init personal --repo vltansky/automations --publish-mode push --default --yes
+npx -y codex-automations init personal --repo owner/automations --publish-mode push --default --yes
 ```
 
 Share one installed automation:
 
 ```bash
 npx -y codex-automations share
-npx -y codex-automations share morning-pr-radar --dry-run
-npx -y codex-automations share morning-pr-radar
+npx -y codex-automations share daily-standup --dry-run
+npx -y codex-automations share daily-standup
 ```
 
 Use a PR-based marketplace for team review:
 
 ```bash
 npx -y codex-automations init team --repo org/codex-automations --publish-mode pr --default --yes
-npx -y codex-automations share morning-pr-radar --marketplace team
+npx -y codex-automations share daily-standup --marketplace team
 ```
 
 ## What It Looks Like
@@ -98,22 +98,22 @@ The interactive `share` flow uses select, text, and confirm prompts:
 $ npx -y codex-automations share
 
 ? Automation to share
-> morning-pr-radar (Morning PR Radar)
-  pr-approvals
-  weekly-release-notes
+> daily-standup (Daily Standup)
+  release-notes
+  review-reminder
 
 ? GitHub marketplace repo
-> vltansky/automations
+> owner/automations
 
 ? Marketplace path
 > automations
 
 Share summary
-Automation: morning-pr-radar
-Repository: vltansky/automations
-Package: automations/morning-pr-radar
+Automation: daily-standup
+Repository: owner/automations
+Package: automations/daily-standup
 Publish mode: push
-Install: npx -y codex-automations add vltansky/automations --automation morning-pr-radar
+Install: npx -y codex-automations add owner/automations --automation daily-standup
 
 ? Publish this automation?
 > Yes
@@ -125,11 +125,11 @@ A marketplace is just a GitHub repository with one or more automation packages:
 
 ```text
 automations/
-  morning-pr-radar/
+  daily-standup/
     codex-automation.json
     automation.toml
     README.md
-  weekly-release-notes/
+  release-notes/
     codex-automation.json
     automation.toml
     README.md
@@ -137,15 +137,25 @@ automations/
 
 The generated marketplace README is a catalog with `npx -y codex-automations add ...` install commands. `share` regenerates the same catalog whenever it publishes an automation.
 
-Example public marketplace:
+Example marketplace commands:
+
+```bash
+npx -y codex-automations add owner/automations --list
+npx -y codex-automations add owner/automations --automation daily-standup --dry-run
+npx -y codex-automations add owner/automations --automation daily-standup
+```
+
+## Try a Real Marketplace
+
+Use this end-to-end example to try the CLI against a public marketplace:
 
 ```bash
 npx -y codex-automations add vltansky/automations --list
-npx -y codex-automations add vltansky/automations --automation morning-pr-radar --dry-run
-npx -y codex-automations add vltansky/automations --automation morning-pr-radar
+npx -y codex-automations add vltansky/automations --automation morning-pr-radar --dry-run --view
+npx -y codex-automations add vltansky/automations --automation morning-pr-radar --name "Morning PR Radar Copy"
 ```
 
-The example repository is [vltansky/automations](https://github.com/vltansky/automations).
+The installed automation is paused by default, so you can review it before activating it in Codex.
 
 ## Safe By Default
 
@@ -165,7 +175,7 @@ By default, the CLI:
 Activate explicitly after reviewing:
 
 ```bash
-npx -y codex-automations add owner/repo --automation morning-pr-radar --activate
+npx -y codex-automations add owner/repo --automation daily-standup --activate
 ```
 
 ## Common Recipes
@@ -173,13 +183,13 @@ npx -y codex-automations add owner/repo --automation morning-pr-radar --activate
 Install from a direct GitHub path:
 
 ```bash
-npx -y codex-automations add https://github.com/owner/repo/tree/main/automations/morning-pr-radar
+npx -y codex-automations add https://github.com/owner/repo/tree/main/automations/daily-standup
 ```
 
 Install multiple automations from one marketplace:
 
 ```bash
-npx -y codex-automations add owner/repo --automation morning-pr-radar --automation weekly-github-standup
+npx -y codex-automations add owner/repo --automation daily-standup --automation release-notes
 ```
 
 Install everything in a marketplace:
@@ -191,33 +201,33 @@ npx -y codex-automations add owner/repo --all
 Install into a specific workspace:
 
 ```bash
-npx -y codex-automations add owner/repo --automation morning-pr-radar --cwd ~/Projects/my-workspace
+npx -y codex-automations add owner/repo --automation daily-standup --cwd ~/Projects/my-workspace
 ```
 
 Inspect and install a local package:
 
 ```bash
-npx -y codex-automations inspect ./morning-pr-radar.codex-automation
-npx -y codex-automations install ./morning-pr-radar.codex-automation --dry-run
-npx -y codex-automations install ./morning-pr-radar.codex-automation --name "Morning PR Radar Copy"
+npx -y codex-automations inspect ./daily-standup.codex-automation
+npx -y codex-automations install ./daily-standup.codex-automation --dry-run
+npx -y codex-automations install ./daily-standup.codex-automation --name "Daily Standup Copy"
 ```
 
 Export one of your local automations:
 
 ```bash
-npx -y codex-automations export morning-pr-radar --output ./morning-pr-radar.codex-automation
+npx -y codex-automations export daily-standup --output ./daily-standup.codex-automation
 ```
 
 Share to a specific marketplace:
 
 ```bash
-npx -y codex-automations share morning-pr-radar --marketplace team
+npx -y codex-automations share daily-standup --marketplace team
 ```
 
 Share without prompts:
 
 ```bash
-npx -y codex-automations share morning-pr-radar --repo vltansky/automations --yes
+npx -y codex-automations share daily-standup --repo owner/automations --yes
 ```
 
 ## Source Formats
@@ -248,7 +258,7 @@ npx -y codex-automations add owner/repo --list
 If a source contains multiple automations, choose one with `--automation`:
 
 ```bash
-npx -y codex-automations add owner/repo --automation morning-pr-radar
+npx -y codex-automations add owner/repo --automation daily-standup
 ```
 
 ## Marketplace Config
@@ -267,7 +277,7 @@ A config can contain multiple marketplaces and one default:
   "defaultMarketplace": "team",
   "marketplaces": {
     "personal": {
-      "repo": "vltansky/automations",
+      "repo": "owner/automations",
       "path": "automations",
       "branch": "main",
       "publishMode": "push"
@@ -331,13 +341,13 @@ automations/<id>/
 Use `--dry-run` to preview without creating a repo, committing, or pushing:
 
 ```bash
-npx -y codex-automations share morning-pr-radar --repo vltansky/automations --dry-run --json
+npx -y codex-automations share daily-standup --repo owner/automations --dry-run --json
 ```
 
 Use `--publish-mode pr` for shared repositories where changes should go through pull requests:
 
 ```bash
-npx -y codex-automations share morning-pr-radar --marketplace team --publish-mode pr
+npx -y codex-automations share daily-standup --marketplace team --publish-mode pr
 ```
 
 ## Package Format
@@ -356,10 +366,10 @@ my-automation.codex-automation/
 ```json
 {
   "schemaVersion": 1,
-  "name": "local/morning-pr-radar",
+  "name": "local/daily-standup",
   "version": "0.1.0",
-  "title": "Morning PR Radar",
-  "description": "Portable Codex automation package for Morning PR Radar.",
+  "title": "Daily Standup",
+  "description": "Portable Codex automation package for Daily Standup.",
   "codex": {
     "automationKinds": ["cron"]
   },
@@ -369,11 +379,11 @@ my-automation.codex-automation/
       "type": "path",
       "mapsTo": "cwds[0]",
       "required": true,
-      "defaultHint": "/Users/example/Projects/vlad"
+      "defaultHint": "/Users/example/Projects/workspace"
     }
   ],
   "install": {
-    "suggestedId": "morning-pr-radar",
+    "suggestedId": "daily-standup",
     "includeMemory": false,
     "defaultStatus": "PAUSED"
   }
@@ -398,7 +408,7 @@ Most commands support `--json` for agent and script usage:
 
 ```bash
 npx -y codex-automations add owner/repo --list --json
-npx -y codex-automations install ./morning-pr-radar.codex-automation --dry-run --json
+npx -y codex-automations install ./daily-standup.codex-automation --dry-run --json
 ```
 
 Errors are emitted as structured JSON with a stable `code` where possible.
