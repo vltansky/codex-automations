@@ -172,7 +172,7 @@ export async function exportAutomation(id, outputDir, env = process.env) {
   await fs.mkdir(outputDir, { recursive: true });
   await fs.writeFile(path.join(outputDir, MANIFEST_NAME), `${JSON.stringify(manifest, null, 2)}\n`);
   await fs.writeFile(path.join(outputDir, AUTOMATION_NAME), stringifyAutomationToml(portable));
-  await fs.writeFile(path.join(outputDir, "README.md"), `# ${manifest.title}\n\n${manifest.description}\n\nInstall with:\n\n\`\`\`bash\nnpx -y codex-automations install ${path.basename(outputDir)}\n\`\`\`\n`);
+  await fs.writeFile(path.join(outputDir, "README.md"), `# ${manifest.title}\n\n${manifest.description}\n\nInstall with:\n\n\`\`\`bash\nnpx -y codex-automations add ${path.basename(outputDir)}\n\`\`\`\n`);
   return { outputDir, manifest, automation: portable };
 }
 
@@ -219,7 +219,7 @@ export async function installPackage(pkg, options = {}, env = process.env) {
   if (!plan.ok) return plan;
 
   const exists = await fs.access(plan.target).then(() => true, () => false);
-  if (exists && !options.replace) fail("id_conflict", `Automation already exists at ${plan.target}`);
+  if (exists && !(options.force || options.replace)) fail("id_conflict", `Automation already exists at ${plan.target}`);
   if (options.dryRun || options.view) {
     return {
       ...plan,
@@ -248,6 +248,29 @@ export async function uninstallAutomation(id, { keepMemory = false } = {}, env =
     await fs.rm(dir, { recursive: true, force: true });
   }
   return { id, removed: true, keepMemory };
+}
+
+export async function resolveInstalledAutomation(name, env = process.env) {
+  const automations = await listAutomations(env);
+  if (!name) return { automations };
+  const query = String(name).trim();
+  const exactName = automations.filter((row) => row.name === query);
+  if (exactName.length === 1) return { automation: exactName[0], automations };
+  const exactId = automations.filter((row) => row.id === query);
+  if (exactId.length === 1) return { automation: exactId[0], automations };
+  const lower = query.toLowerCase();
+  const caseName = automations.filter((row) => String(row.name || "").toLowerCase() === lower);
+  if (caseName.length === 1) return { automation: caseName[0], automations };
+  const partial = automations.filter((row) => {
+    return String(row.name || "").toLowerCase().includes(lower) || row.id.toLowerCase().includes(lower);
+  });
+  if (partial.length === 1) return { automation: partial[0], automations };
+  if (partial.length > 1 || exactName.length > 1 || exactId.length > 1 || caseName.length > 1) {
+    fail("ambiguous_automation", `Automation name is ambiguous: ${name}`, {
+      automations: partial.map((row) => row.id)
+    });
+  }
+  fail("automation_not_found", `Automation not found: ${name}`);
 }
 
 export function diffAutomation(left, right) {

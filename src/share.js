@@ -4,9 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { cancel, confirm, isCancel, note, select, text } from "@clack/prompts";
-import { exportAutomation, listAutomations, readPackage } from "./automation.js";
+import { exportAutomation, listAutomations, readPackage, resolveInstalledAutomation } from "./automation.js";
 import { writeCollectionReadme } from "./collection.js";
-import { resolveCollection } from "./config.js";
+import { readConfig, upsertCollection } from "./config.js";
 import { fail } from "./errors.js";
 
 const execFileAsync = promisify(execFile);
@@ -14,23 +14,23 @@ const execFileAsync = promisify(execFile);
 export async function shareAutomation(id, options = {}, env = process.env, io = {}) {
   const exec = options.exec || run;
   const login = await getGithubLogin(exec);
-  const selectedId = id || await promptForAutomation(env, io);
-  const marketplaceName = options.marketplace || options.collection;
-  const marketplace = marketplaceName || !options.repo ? await resolveCollection(marketplaceName, env) : undefined;
+  const selectedId = id ? (await resolveInstalledAutomation(id, env)).automation.id : await promptForAutomation(env, io);
+  const saved = await defaultDestination(env);
   const defaultRepo = `${login}/codex-automations`;
-  const ownerRepo = options.repo || marketplace?.repo || await promptWithDefault("GitHub marketplace repo", defaultRepo, io, options);
+  const ownerRepo = options.repo || await promptWithDefault("GitHub repo", saved?.repo || defaultRepo, io, options);
   assertOwnerRepo(ownerRepo);
 
-  const collectionPath = options.path || marketplace?.path || await promptWithDefault("Marketplace path", "automations", io, options);
-  const branch = marketplace?.branch || "main";
-  const publishMode = options.publishMode || marketplace?.publishMode || "push";
+  const collectionPath = "automations";
+  const branch = saved?.repo === ownerRepo ? saved.branch : "main";
+  const publishMode = options.publishMode || await promptPublishMode(saved?.repo === ownerRepo ? saved.publishMode : undefined, io, options);
   if (!["push", "pr"].includes(publishMode)) fail("invalid_publish_mode", "Publish mode must be push or pr");
   const packagePath = `${collectionPath.replace(/^\/|\/$/g, "")}/${selectedId}`;
   const repoExists = await githubRepoExists(exec, ownerRepo);
   const repoUrl = `https://github.com/${ownerRepo}`;
-  const installCommand = `npx -y codex-automations add ${ownerRepo} --automation ${selectedId}`;
+  const publishBranch = publishMode === "pr" ? `add/${selectedId}` : branch;
+  const installCommand = `npx -y codex-automations add ${repoUrl}/tree/${publishBranch}/${packagePath}`;
 
-  const confirmed = options.yes || options.dryRun || await confirmShare({
+  const confirmed = options.dryRun || nonInteractiveExplicitShare(options, io) || await confirmShare({
     id: selectedId,
     ownerRepo,
     packagePath,
@@ -56,7 +56,7 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
     const targetDir = path.join(repoDir, packagePath);
     await exportAutomation(selectedId, targetDir, env);
     await stampSharedManifest(targetDir, ownerRepo, packagePath, repoUrl);
-    await writeCollectionReadme(repoDir, ownerRepo);
+    await writeCollectionReadme(repoDir, ownerRepo, { branch });
 
     if (options.dryRun) {
       return {
@@ -69,8 +69,7 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
         repoUrl,
         installCommand,
         publishMode,
-        marketplace: marketplace?.name,
-        collection: marketplace?.name
+        destination: saved?.repo === ownerRepo ? saved.name : undefined
       };
     }
 
@@ -86,7 +85,6 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
       ]);
     }
 
-    const publishBranch = publishMode === "pr" ? `add/${selectedId}` : branch;
     if (publishMode === "pr") {
       await exec("git", ["checkout", "-b", publishBranch], { cwd: repoDir });
     }
@@ -94,14 +92,15 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
     await exec("git", ["add", "README.md", packagePath], { cwd: repoDir });
     const status = (await exec("git", ["status", "--porcelain"], { cwd: repoDir })).stdout.trim();
     if (!status) {
-      return { ok: true, repo: ownerRepo, repoUrl, packagePath, changed: false, installCommand, publishMode, marketplace: marketplace?.name, collection: marketplace?.name };
+      return { ok: true, repo: ownerRepo, repoUrl, packagePath, changed: false, installCommand, publishMode, destination: saved?.repo === ownerRepo ? saved.name : undefined };
     }
 
     const message = options.message || `Add ${selectedId} Codex automation`;
+    let prUrl;
     await exec("git", ["commit", "-m", message], { cwd: repoDir });
     if (publishMode === "pr") {
       await exec("git", ["push", "-u", "origin", publishBranch], { cwd: repoDir });
-      await exec("gh", [
+      const pr = await exec("gh", [
         "pr",
         "create",
         "--repo",
@@ -115,20 +114,32 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
         "--body",
         `Install with:\n\n\`\`\`bash\n${installCommand}\n\`\`\``
       ], { cwd: repoDir });
+      prUrl = pr.stdout?.trim();
     } else {
       await exec("git", ["push", "-u", "origin", branch], { cwd: repoDir });
     }
+
+    const destination = await maybeSaveDestination({
+      ownerRepo,
+      collectionPath,
+      branch,
+      publishMode,
+      env,
+      io,
+      options,
+      existing: saved?.repo === ownerRepo ? saved.name : undefined
+    });
 
     return {
       ok: true,
       repo: ownerRepo,
       repoUrl,
+      prUrl,
       packagePath,
       changed: true,
       installCommand,
       publishMode,
-      marketplace: marketplace?.name,
-      collection: marketplace?.name
+      destination
     };
   } finally {
     if (!options.keepTemp) await fs.rm(temp, { recursive: true, force: true });
@@ -160,9 +171,22 @@ async function githubRepoExists(exec, ownerRepo) {
   try {
     await exec("gh", ["repo", "view", ownerRepo, "--json", "nameWithOwner"]);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    const message = `${error.stderr || ""}\n${error.message || ""}`;
+    if (/not found|could not resolve to a repository|repository not found/i.test(message)) return false;
+    fail("github_repo_check_failed", `Could not check GitHub repo ${ownerRepo}: ${error.stderr || error.message}`);
   }
+}
+
+async function defaultDestination(env) {
+  const config = await readConfig(env);
+  const name = config.defaultMarketplace;
+  if (!name || !config.marketplaces[name]) return undefined;
+  return { name, ...config.marketplaces[name] };
+}
+
+function nonInteractiveExplicitShare(options, io) {
+  return Boolean(options.repo && options.publishMode && !io.ask && !io.write && !process.stdin.isTTY);
 }
 
 async function promptForAutomation(env, io) {
@@ -197,7 +221,7 @@ async function promptForAutomation(env, io) {
 }
 
 async function promptWithDefault(label, defaultValue, io, options) {
-  if (options.yes || options.dryRun) return defaultValue;
+  if (options.dryRun) return defaultValue;
   if (!io.ask) {
     const answer = await text({
       message: label,
@@ -208,6 +232,50 @@ async function promptWithDefault(label, defaultValue, io, options) {
   }
   const answer = await ask(`${label} [${defaultValue}]`, io);
   return answer.trim() || defaultValue;
+}
+
+async function promptPublishMode(defaultValue, io, options) {
+  if (options.dryRun) return defaultValue || "pr";
+  if (!io.ask) {
+    const answer = await select({
+      message: "Publish",
+      options: [
+        { value: "pr", label: "Open a pull request" },
+        { value: "push", label: "Push directly" }
+      ],
+      initialValue: defaultValue || "pr"
+    });
+    return ensureNotCancelled(answer);
+  }
+  const answer = (await ask(`Open a pull request? [Y/n]`, io)).trim();
+  if (!answer) return "pr";
+  return /^n(o)?$/i.test(answer) ? "push" : "pr";
+}
+
+async function maybeSaveDestination({ ownerRepo, collectionPath, branch, publishMode, env, io, options, existing }) {
+  if (existing || options.dryRun) return existing;
+  if (!io.ask && !io.write && !process.stdin.isTTY) return undefined;
+  let shouldSave;
+  if (!io.ask && !io.write) {
+    const answer = await confirm({
+      message: "Save this destination for next time?",
+      initialValue: false
+    });
+    shouldSave = Boolean(ensureNotCancelled(answer));
+  } else {
+    const answer = (await ask("Save this destination for next time? [y/N]", io)).trim();
+    shouldSave = /^y(es)?$/i.test(answer);
+  }
+  if (!shouldSave) return undefined;
+  const fallbackName = ownerRepo.split("/").at(-1);
+  const name = await promptWithDefault("Destination name", fallbackName, io, {});
+  const saved = await upsertCollection(name, {
+    repo: ownerRepo,
+    path: collectionPath,
+    branch,
+    publishMode
+  }, { makeDefault: true }, env);
+  return saved.name;
 }
 
 async function confirmShare({ id, ownerRepo, packagePath, repoExists, publishMode, installCommand, io }) {
@@ -239,7 +307,7 @@ async function confirmShare({ id, ownerRepo, packagePath, repoExists, publishMod
 
 async function ask(question, io) {
   if (io.ask) return io.ask(question);
-  fail("confirmation_required", "Pass --yes for non-interactive usage");
+  fail("confirmation_required", "Run in an interactive terminal");
 }
 
 function write(io, message) {

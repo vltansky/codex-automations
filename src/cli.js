@@ -1,28 +1,15 @@
 import path from "node:path";
-import { cancel, confirm, isCancel } from "@clack/prompts";
+import { cancel, confirm, isCancel, select } from "@clack/prompts";
 import {
-  diffAutomation,
-  exportAutomation,
   installPackage,
   listAutomations,
-  prepareInstall,
-  readInstalled,
+  resolveInstalledAutomation,
   readPackage,
-  uninstallAutomation,
-  validateAutomation,
-  validateManifest
+  uninstallAutomation
 } from "./automation.js";
-import { initCollection, initConnectedCollection } from "./collection.js";
-import {
-  listCollections,
-  readConfig,
-  removeCollection,
-  setDefaultCollection,
-  upsertCollection
-} from "./config.js";
 import { fail } from "./errors.js";
 import { shareAutomation } from "./share.js";
-import { discoverPackages, resolveSource, selectPackages } from "./source.js";
+import { discoverPackages, resolveSource } from "./source.js";
 
 export async function main(argv) {
   const { command, args, flags } = parseArgs(argv);
@@ -32,32 +19,13 @@ export async function main(argv) {
 
   switch (command) {
     case "list":
-      return print(await listAutomations(), json);
-    case "show":
-      return print(await readInstalled(required(args[0], "id")).then((x) => x.automation), json);
-    case "export":
-      return print(await exportAutomation(required(args[0], "id"), flags.output || `${args[0]}.codex-automation`), json);
+      return listCommand(json);
     case "share":
       return shareCommand(args[0], flags, json);
     case "add":
       return addCommand(required(args[0], "source"), flags, json);
-    case "init":
-      return initCommand(args, flags, json);
-    case "marketplace":
-    case "marketplaces":
-      return marketplaceCommand(args, flags, json);
-    case "collections":
-      return marketplaceCommand(args, flags, json, { legacy: true });
-    case "inspect":
-      return inspectCommand(required(args[0], "package"), json);
-    case "install":
-      return installCommand(required(args[0], "package"), flags, json);
-    case "validate":
-      return validateCommand(required(args[0], "package"), json);
-    case "diff":
-      return diffCommand(required(args[0], "id"), required(args[1], "package"));
-    case "uninstall":
-      return print(await uninstallAutomation(required(args[0], "id"), { keepMemory: Boolean(flags["keep-memory"]) }), json);
+    case "remove":
+      return removeCommand(args[0], flags, json);
     case "help":
     case undefined:
       return help();
@@ -67,177 +35,60 @@ export async function main(argv) {
 }
 
 async function shareCommand(id, flags, json) {
+  if (flags.pr && flags.push) fail("conflicting_publish_mode", "Pass either --pr or --push, not both");
   const result = await shareAutomation(id, {
     repo: flags.repo,
-    marketplace: flags.marketplace || flags.collection,
-    path: flags.path,
-    publishMode: flags["publish-mode"],
-    message: flags.message,
-    yes: Boolean(flags.yes),
+    publishMode: flags.pr ? "pr" : flags.push ? "push" : undefined,
     dryRun: Boolean(flags["dry-run"])
   });
   return print(result, json);
 }
 
-async function initCommand(args, flags, json) {
-  if (flags.local) {
-    return print(await initCollection(args[0] || ".", { repo: flags.repo }), json);
-  }
-  return print(await initConnectedCollection({
-    name: flags.name || args[0],
-    repo: flags.repo,
-    path: flags.path,
-    branch: flags.branch,
-    publishMode: flags["publish-mode"],
-    makeDefault: flags.default ? true : undefined,
-    yes: Boolean(flags.yes)
-  }), json);
-}
-
-async function marketplaceCommand(args, flags, json, { legacy = false } = {}) {
-  const subcommand = args[0] || "list";
-  switch (subcommand) {
-    case "list":
-    case "ls":
-      return print(listCollections(await readConfig()), json);
-    case "add":
-      return print(await upsertCollection(required(args[1], "name"), {
-        repo: required(flags.repo, "repo"),
-        path: flags.path,
-        branch: flags.branch,
-        publishMode: flags["publish-mode"]
-      }, { makeDefault: Boolean(flags.default) }), json);
-    case "default":
-      return print(await setDefaultCollection(required(args[1], "name")), json);
-    case "remove":
-    case "rm":
-      return print(await removeCollection(required(args[1], "name")), json);
-    default:
-      fail("unknown_subcommand", `Unknown ${legacy ? "collections" : "marketplace"} command: ${subcommand}`);
-  }
+async function listCommand(json) {
+  const automations = await listAutomations();
+  return print(automations, json);
 }
 
 async function addCommand(source, flags, json) {
   const resolved = await resolveSource(source);
   try {
     const packages = await discoverPackages(resolved.root);
-    if (flags.list) {
-      const rows = packages.map((pkg) => ({
-        id: pkg.id,
-        title: pkg.title,
-        name: pkg.name,
-        path: pkg.path,
-        marketplacePath: displayPackagePath(resolved, pkg),
-        collectionPath: displayPackagePath(resolved, pkg)
-      }));
-      return json ? print(rows, json) : printPackageList(rows, source);
-    }
-
-    const selected = selectPackages(packages, { requested: flags.automation, all: Boolean(flags.all) });
-    if (flags.id && selected.length > 1) fail("id_with_multiple_automations", "--id can only be used when installing one automation");
-    if (flags.name && selected.length > 1) fail("name_with_multiple_automations", "--name can only be used when installing one automation");
-
-    const results = [];
-    for (const item of selected) {
-      const pkg = await readPackage(item.path);
-      const activate = await resolveActivation(pkg, flags, json);
-      const result = await installPackage(pkg, {
-        id: flags.id,
-        name: flags.name,
-        cwd: flags.cwd,
-        replace: Boolean(flags.replace),
-        dryRun: Boolean(flags["dry-run"]),
-        view: Boolean(flags.view),
-        activate,
-        source: sourceMetadata(source, resolved, item)
-      });
-      if (!result.ok) process.exitCode = 1;
-      results.push({ ...result, source, selected: item.id });
-    }
-    const value = results.length === 1 ? results[0] : results;
-    return json ? print(value, json) : printInstallResult(value);
+    const selected = await choosePackage(packages, json);
+    const pkg = await readPackage(selected.path);
+    const result = await installPackage(pkg, {
+      name: flags.name,
+      cwd: flags.cwd,
+      force: Boolean(flags.force),
+      dryRun: Boolean(flags["dry-run"]),
+      activate: Boolean(flags.activate),
+      source: sourceMetadata(source, resolved, selected)
+    });
+    if (!result.ok) process.exitCode = 1;
+    return json ? print({ ...result, source, selected: selected.id }, json) : printInstallResult({ ...result, source, selected: selected.id });
   } finally {
     await resolved.cleanup();
   }
 }
 
-async function inspectCommand(packagePath, json) {
-  const pkg = await readPackage(packagePath);
-  const result = {
-    manifest: pkg.manifest,
-    automation: pkg.automation,
-    validation: {
-      manifest: validateManifest(pkg.manifest),
-      automation: validateAutomation(pkg.automation, { portable: true })
-    }
-  };
-  return print(result, json);
-}
-
-async function validateCommand(packagePath, json) {
-  const pkg = await readPackage(packagePath);
-  const result = {
-    ok: true,
-    manifest: validateManifest(pkg.manifest),
-    automation: validateAutomation(pkg.automation, { portable: true })
-  };
-  result.ok = result.manifest.ok && result.automation.ok;
-  if (!json && !result.ok) process.exitCode = 1;
-  return print(result, json);
-}
-
-async function installCommand(packagePath, flags, json) {
-  const pkg = await readPackage(packagePath);
-  const activate = await resolveActivation(pkg, flags, json);
-  const options = {
-    id: flags.id,
-    name: flags.name,
-    cwd: flags.cwd,
-    replace: Boolean(flags.replace),
-    dryRun: Boolean(flags["dry-run"]),
-    view: Boolean(flags.view),
-    activate,
-    source: {
-      type: "local",
-      input: packagePath,
-      path: path.resolve(packagePath),
-      packageId: pkg.manifest.install?.suggestedId || pkg.automation.id
-    }
-  };
-  const result = await installPackage(pkg, options);
-  if (!result.ok) process.exitCode = 1;
-  return json ? print(result, json) : printInstallResult(result);
-}
-
-async function diffCommand(id, packagePath) {
-  const installed = await readInstalled(id);
-  const pkg = await readPackage(packagePath);
-  console.log(diffAutomation(installed.automation, pkg.automation) || "No differences");
-}
-
 function parseArgs(argv) {
   const args = [];
   const flags = {};
+  const booleanFlags = new Set(["json", "dry-run", "activate", "force", "help", "pr", "push"]);
+  const valueFlags = new Set(["name", "cwd", "repo"]);
   for (let index = 0; index < argv.length; index += 1) {
     const item = argv[index];
-    if (item === "-y") {
-      flags.yes = true;
-      continue;
-    }
     if (!item.startsWith("--")) {
       args.push(item);
       continue;
     }
     const key = item.slice(2);
-    if (["json", "dry-run", "replace", "activate", "keep-memory", "list", "yes", "help", "all", "view", "local", "default"].includes(key)) {
+    if (booleanFlags.has(key)) {
       flags[key] = true;
-    } else if (key === "automation") {
-      const value = required(argv[index + 1], key);
-      flags[key] = flags[key] ? [...asArray(flags[key]), value] : value;
-      index += 1;
-    } else {
+    } else if (valueFlags.has(key)) {
       flags[key] = required(argv[index + 1], key);
       index += 1;
+    } else {
+      fail("unknown_flag", `Unknown flag: --${key}`);
     }
   }
   return { command: args.shift(), args, flags };
@@ -248,24 +99,64 @@ function required(value, label) {
   return value;
 }
 
-async function resolveActivation(pkg, flags, json) {
-  if (flags.activate || flags.yes) return true;
-  if (flags["dry-run"] || flags.view || json || !isInteractiveTerminal()) return false;
-
-  const title = pkg.manifest.title || pkg.automation.name || pkg.automation.id || "this automation";
-  const answer = await confirm({
-    message: `Enable ${title} after installing?`,
-    initialValue: false
-  });
-  if (isCancel(answer)) {
-    cancel("Install cancelled");
-    fail("install_cancelled", "Install cancelled");
+async function choosePackage(packages, json) {
+  if (packages.length === 0) fail("no_packages_found", "No codex-automations packages found in source");
+  if (packages.length === 1) return packages[0];
+  if (json || !isInteractiveTerminal()) {
+    fail("multiple_packages_found", "Source contains multiple automations; pass a direct package path instead");
   }
-  return Boolean(answer);
+  const answer = await select({
+    message: "Automation to install",
+    options: packages.map((pkg) => ({
+      value: pkg.id,
+      label: pkg.title || pkg.id,
+      hint: pkg.id
+    }))
+  });
+  const selected = ensureNotCancelled(answer, "Install cancelled");
+  return packages.find((pkg) => pkg.id === selected);
+}
+
+async function removeCommand(name, flags, json) {
+  const resolved = await resolveInstalledAutomation(name);
+  const automation = resolved.automation || await chooseInstalledAutomation(resolved.automations, json, "Automation to remove");
+  if (!flags.force && !json && isInteractiveTerminal()) {
+    const answer = await confirm({
+      message: `Remove ${automation.name || automation.id}?`,
+      initialValue: false
+    });
+    if (!ensureNotCancelled(answer, "Remove cancelled")) fail("remove_cancelled", "Remove cancelled");
+  } else if (!flags.force && !json) {
+    fail("confirmation_required", "Run in an interactive terminal, or pass --force");
+  }
+  return print(await uninstallAutomation(automation.id), json);
+}
+
+async function chooseInstalledAutomation(automations, json, message) {
+  if (automations.length === 0) fail("no_installed_automations", "No installed Codex automations found");
+  if (json || !isInteractiveTerminal()) fail("missing_argument", "Missing required argument: name");
+  const answer = await select({
+    message,
+    options: automations.map((automation) => ({
+      value: automation.id,
+      label: automation.name || automation.id,
+      hint: automation.id
+    }))
+  });
+  const selected = ensureNotCancelled(answer, "Operation cancelled");
+  return automations.find((automation) => automation.id === selected);
 }
 
 function isInteractiveTerminal() {
   return Boolean(process.stdin.isTTY && process.stdout.isTTY);
+}
+
+function ensureNotCancelled(value, message) {
+  if (isCancel(value)) {
+    cancel(message);
+    fail("operation_cancelled", message);
+  }
+  return value;
 }
 
 function print(value, json) {
@@ -275,7 +166,7 @@ function print(value, json) {
   }
   if (Array.isArray(value)) {
     for (const row of value) {
-      if ("status" in row || "kind" in row) console.log(`${row.id}\t${row.status}\t${row.kind}\t${row.name}`);
+      if ("status" in row || "kind" in row) console.log(formatAutomationRow(row));
       else if ("title" in row) console.log(`${row.id}\t${row.title}\t${row.path || ""}`);
       else if ("repo" in row) console.log(`${row.default ? "*" : " "}\t${row.name}\t${row.repo}\t${row.path}\t${row.publishMode}`);
       else console.log(JSON.stringify(row));
@@ -283,16 +174,6 @@ function print(value, json) {
     return;
   }
   console.log(JSON.stringify(value, null, 2));
-}
-
-function printPackageList(rows, source) {
-  console.log(`Automations in ${source}:`);
-  for (const row of rows) {
-    console.log(`- ${row.id}: ${row.title} (${row.marketplacePath || row.path})`);
-  }
-  console.log("");
-  console.log("Install one with:");
-  console.log(`  npx -y codex-automations add ${source} --automation <id>`);
 }
 
 function printInstallResult(value) {
@@ -310,7 +191,7 @@ function printInstallResult(value) {
     const label = name && name !== id ? `${name} (${id})` : id;
     const action = result.dryRun ? `Would ${result.action || "install"}` : result.installed ? "Installed" : titleCase(result.action || "Prepared");
     console.log(`${action}: ${label}`);
-    if (result.source) console.log(`Source: ${result.source}${result.selected ? ` --automation ${result.selected}` : ""}`);
+    if (result.source) console.log(`Source: ${result.source}`);
     if (result.target) console.log(`Target: ${result.target}`);
     if (result.automation?.status) console.log(`Status: ${result.automation.status}`);
     if (Array.isArray(result.automation?.cwds) && result.automation.cwds.length > 0) {
@@ -331,6 +212,13 @@ function printInstallResult(value) {
   }
 }
 
+function formatAutomationRow(row) {
+  const label = row.name && row.name !== row.id ? `${row.name} (${row.id})` : row.id;
+  const bits = [label, row.status].filter(Boolean);
+  if (row.rrule) bits.push(row.rrule);
+  return bits.join("\t");
+}
+
 function printValidationMessages(label, messages = []) {
   if (!messages.length) return;
   console.log(`${label}:`);
@@ -339,17 +227,8 @@ function printValidationMessages(label, messages = []) {
   }
 }
 
-function displayPackagePath(resolved, pkg) {
-  const relative = path.relative(resolved.root, pkg.path) || ".";
-  return relative.split(path.sep).join("/");
-}
-
 function titleCase(value) {
   return value.slice(0, 1).toUpperCase() + value.slice(1);
-}
-
-function asArray(value) {
-  return Array.isArray(value) ? value : [value];
 }
 
 function sourceMetadata(source, resolved, selected) {
@@ -368,6 +247,7 @@ function sourceMetadata(source, resolved, selected) {
       owner: parsed.owner,
       repo: parsed.repo,
       ref: parsed.ref,
+      pull: parsed.pull,
       subpath: parsed.subpath
     };
   }
@@ -385,32 +265,17 @@ function help() {
   console.log(`codex-automations
 
 Usage:
+  npx -y codex-automations add <source> [--name <name>] [--cwd <path>] [--activate] [--force] [--dry-run] [--json]
+  npx -y codex-automations share [name] [--repo <owner/repo>] [--pr|--push] [--dry-run] [--json]
   npx -y codex-automations list [--json]
-  npx -y codex-automations show <id> [--json]
-  npx -y codex-automations share [id] [--marketplace <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--dry-run] [--yes] [--json]
-  npx -y codex-automations add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [-y|--yes] [--json]
-  npx -y codex-automations init [name] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--default] [--yes] [--json]
-  npx -y codex-automations init --local [dir] [--repo <owner/repo>] [--json]
-  npx -y codex-automations marketplace [list] [--json]
-  npx -y codex-automations marketplace add <name> --repo <owner/repo> [--path <dir>] [--publish-mode <push|pr>] [--default] [--json]
-  npx -y codex-automations marketplace default <name> [--json]
-  npx -y codex-automations marketplace remove <name> [--json]
-  npx -y codex-automations export <id> [--output <dir>] [--json]
-  npx -y codex-automations inspect <dir> [--json]
-  npx -y codex-automations validate <dir> [--json]
-  npx -y codex-automations install <dir> [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [-y|--yes] [--json]
-  npx -y codex-automations diff <id> <dir>
-  npx -y codex-automations uninstall <id> [--keep-memory] [--json]
+  npx -y codex-automations remove [name] [--force] [--json]
 
 Sources:
   owner/repo
   https://github.com/owner/repo
   https://github.com/owner/repo/tree/main/path/to/package-or-marketplace
+  https://github.com/owner/repo/pull/123
   ./local-package-or-marketplace
-
-Aliases:
-  collections and --collection are accepted for backwards compatibility.
-  -y and --yes activate installed automations without prompting.
 
 Environment:
   CODEX_HOME defaults to ${path.join("~", ".codex")}

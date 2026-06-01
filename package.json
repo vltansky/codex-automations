@@ -1,7 +1,7 @@
 {
   "name": "codex-automations",
   "version": "0.1.11",
-  "description": "Share, inspect, export, and install Codex automation packages.",
+  "description": "Share and install Codex automation packages.",
   "type": "module",
   "bin": {
     "codex-automation": "bin/codex-automation.js",

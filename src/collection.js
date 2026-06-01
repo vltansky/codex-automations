@@ -5,12 +5,13 @@ import { upsertCollection } from "./config.js";
 import { fail } from "./errors.js";
 import { discoverPackages } from "./source.js";
 
-export async function writeCollectionReadme(repoDir, ownerRepo = "owner/codex-automations") {
+export async function writeCollectionReadme(repoDir, ownerRepo = "owner/codex-automations", options = {}) {
+  const branch = options.branch || "main";
   const packages = await discoverPackages(repoDir);
   const rows = packages.map((pkg) => {
     const rel = path.relative(repoDir, pkg.path);
     const description = pkg.manifest.description || "";
-    return `| \`${pkg.id}\` | ${escapeCell(pkg.title)} | ${escapeCell(description)} | \`npx -y codex-automations add ${ownerRepo} --automation ${pkg.id}\` | [${rel}](./${rel}) |`;
+    return `| \`${pkg.id}\` | ${escapeCell(pkg.title)} | ${escapeCell(description)} | \`npx -y codex-automations add https://github.com/${ownerRepo}/tree/${branch}/${rel}\` | [${rel}](./${rel}) |`;
   });
 
   await fs.writeFile(path.join(repoDir, "README.md"), `# Codex Automations
@@ -20,9 +21,8 @@ Shared Codex automation packages.
 ## Install
 
 \`\`\`bash
-npx -y codex-automations add ${ownerRepo} --list
-npx -y codex-automations add ${ownerRepo} --automation <id> --dry-run
-npx -y codex-automations add ${ownerRepo} --automation <id>
+npx -y codex-automations add ${ownerRepo}
+npx -y codex-automations add https://github.com/${ownerRepo}/pull/<number>
 \`\`\`
 
 ## Automations
@@ -95,7 +95,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npx -y codex-automations add . --list --json
+      - name: Validate packages
+        run: |
+          find automations -mindepth 1 -maxdepth 1 -type d -print0 | while IFS= read -r -d '' package; do
+            npx -y codex-automations add "$package" --dry-run --json
+          done
 `);
 }
 
@@ -134,7 +138,7 @@ async function promptBoolean(label, defaultValue, io, options) {
 
 async function ask(question, io) {
   if (io.ask) return io.ask(question);
-  fail("confirmation_required", "Pass --yes for non-interactive usage");
+  fail("confirmation_required", "Run in an interactive terminal");
 }
 
 function ensureNotCancelled(value) {

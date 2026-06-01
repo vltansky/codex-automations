@@ -241,16 +241,18 @@ test("parses GitHub-like add sources", () => {
     repo: "skills",
     url: "https://github.com/vercel-labs/skills.git",
     ref: undefined,
+    pull: undefined,
     subpath: ""
   });
-  assert.deepEqual(parseSource("https://github.com/vltansky/codex-automations/tree/main/automations/radar"), {
-    type: "github",
-    owner: "vltansky",
-    repo: "codex-automations",
-    url: "https://github.com/vltansky/codex-automations.git",
-    ref: "main",
-    subpath: "automations/radar"
-  });
+  const tree = parseSource("https://github.com/vltansky/codex-automations/tree/main/automations/radar");
+  assert.equal(tree.type, "github");
+  assert.equal(tree.ref, "main");
+  assert.equal(tree.subpath, "automations/radar");
+  assert.deepEqual(tree.treeParts, ["main", "automations", "radar"]);
+
+  const pull = parseSource("https://github.com/vltansky/codex-automations/pull/123");
+  assert.equal(pull.type, "github");
+  assert.equal(pull.pull, 123);
 });
 
 test("parses local add sources with home expansion", () => {
@@ -295,27 +297,18 @@ test("selectPackage rejects ambiguous collections until automation is specified"
   assert.throws(() => selectPackage(packages, "missing"), /Automation not found/);
 });
 
-test("add list prints package paths without temp clone internals", async () => {
+test("add fails for multiple packages in non-interactive mode", async () => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
   const env = { CODEX_HOME: path.join(temp, "codex-home") };
-  const originalLog = console.log;
-  const lines = [];
-  await writeInstalledSample(env);
+  await writeInstalledSample(env, "morning-pr-radar", "Morning PR Radar");
+  await writeInstalledSample(env, "weekly-release-notes", "Weekly Release Notes");
   await exportAutomation("morning-pr-radar", path.join(temp, "repo", "automations", "morning-pr-radar"), env);
+  await exportAutomation("weekly-release-notes", path.join(temp, "repo", "automations", "weekly-release-notes"), env);
 
-  console.log = (message) => lines.push(message);
-  try {
-    await main(["add", path.join(temp, "repo"), "--list"]);
-  } finally {
-    console.log = originalLog;
-  }
-
-  const output = lines.join("\n");
-  const packageLine = lines.find((line) => line.includes("morning-pr-radar"));
-  assert.match(output, /Automations in /);
-  assert.match(output, /morning-pr-radar: Morning PR Radar \(automations\/morning-pr-radar\)/);
-  assert.doesNotMatch(packageLine, new RegExp(escapeRegExp(temp)));
-  assert.doesNotMatch(output, /^\[/m);
+  await assert.rejects(
+    () => main(["add", path.join(temp, "repo")]),
+    /Source contains multiple automations/
+  );
 });
 
 test("add dry-run prints a human install summary unless json is requested", async () => {
@@ -330,7 +323,7 @@ test("add dry-run prints a human install summary unless json is requested", asyn
   process.env.CODEX_HOME = path.join(temp, "install-home");
   console.log = (message) => lines.push(message);
   try {
-    await main(["add", path.join(temp, "repo"), "--automation", "morning-pr-radar", "--dry-run", "--view", "--cwd", path.join(temp, "workspace")]);
+    await main(["add", path.join(temp, "repo", "automations", "morning-pr-radar"), "--dry-run", "--cwd", path.join(temp, "workspace")]);
   } finally {
     console.log = originalLog;
     if (originalCodexHome === undefined) delete process.env.CODEX_HOME;
@@ -341,11 +334,11 @@ test("add dry-run prints a human install summary unless json is requested", asyn
   assert.match(output, /^Would install: Morning PR Radar \(morning-pr-radar\)/m);
   assert.match(output, /Status: PAUSED/);
   assert.match(output, /No files were written\./);
-  assert.match(output, /automation\.toml preview:/);
+  assert.doesNotMatch(output, /automation\.toml preview:/);
   assert.doesNotMatch(output, /^\{/);
 });
 
-test("add -y installs the selected automation as active", async () => {
+test("add installs the selected automation as paused by default", async () => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
   const env = { CODEX_HOME: path.join(temp, "codex-home") };
   const originalCodexHome = process.env.CODEX_HOME;
@@ -356,7 +349,29 @@ test("add -y installs the selected automation as active", async () => {
   process.env.CODEX_HOME = path.join(temp, "install-home");
   console.log = () => {};
   try {
-    await main(["add", path.join(temp, "repo"), "--automation", "morning-pr-radar", "-y", "--cwd", path.join(temp, "workspace")]);
+    await main(["add", path.join(temp, "repo", "automations", "morning-pr-radar"), "--cwd", path.join(temp, "workspace")]);
+  } finally {
+    console.log = originalLog;
+    if (originalCodexHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = originalCodexHome;
+  }
+
+  const installedToml = await fs.readFile(path.join(temp, "install-home", "automations", "morning-pr-radar", "automation.toml"), "utf8");
+  assert.equal(parseAutomationToml(installedToml).status, "PAUSED");
+});
+
+test("add --activate installs the selected automation as active", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  const originalCodexHome = process.env.CODEX_HOME;
+  const originalLog = console.log;
+  await writeInstalledSample(env);
+  await exportAutomation("morning-pr-radar", path.join(temp, "repo", "automations", "morning-pr-radar"), env);
+
+  process.env.CODEX_HOME = path.join(temp, "install-home");
+  console.log = () => {};
+  try {
+    await main(["add", path.join(temp, "repo", "automations", "morning-pr-radar"), "--activate", "--cwd", path.join(temp, "workspace")]);
   } finally {
     console.log = originalLog;
     if (originalCodexHome === undefined) delete process.env.CODEX_HOME;
@@ -367,7 +382,7 @@ test("add -y installs the selected automation as active", async () => {
   assert.equal(parseAutomationToml(installedToml).status, "ACTIVE");
 });
 
-test("add --yes installs the selected automation as active", async () => {
+test("add --force replaces an existing automation", async () => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
   const env = { CODEX_HOME: path.join(temp, "codex-home") };
   const originalCodexHome = process.env.CODEX_HOME;
@@ -375,18 +390,18 @@ test("add --yes installs the selected automation as active", async () => {
   await writeInstalledSample(env);
   await exportAutomation("morning-pr-radar", path.join(temp, "repo", "automations", "morning-pr-radar"), env);
 
-  process.env.CODEX_HOME = path.join(temp, "install-home");
+  process.env.CODEX_HOME = env.CODEX_HOME;
   console.log = () => {};
   try {
-    await main(["add", path.join(temp, "repo"), "--automation", "morning-pr-radar", "--yes", "--cwd", path.join(temp, "workspace")]);
+    await main(["add", path.join(temp, "repo", "automations", "morning-pr-radar"), "--force"]);
   } finally {
     console.log = originalLog;
     if (originalCodexHome === undefined) delete process.env.CODEX_HOME;
     else process.env.CODEX_HOME = originalCodexHome;
   }
 
-  const installedToml = await fs.readFile(path.join(temp, "install-home", "automations", "morning-pr-radar", "automation.toml"), "utf8");
-  assert.equal(parseAutomationToml(installedToml).status, "ACTIVE");
+  const installedToml = await fs.readFile(path.join(env.CODEX_HOME, "automations", "morning-pr-radar", "automation.toml"), "utf8");
+  assert.equal(parseAutomationToml(installedToml).status, "PAUSED");
 });
 
 test("collection init scaffolds readme and validation workflow", async () => {
@@ -395,8 +410,10 @@ test("collection init scaffolds readme and validation workflow", async () => {
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.files, ["README.md", "automations/.gitkeep", ".github/workflows/validate.yml"]);
-  assert.match(await fs.readFile(path.join(result.path, "README.md"), "utf8"), /npx -y codex-automations add vltansky\/codex-automations --list/);
-  assert.match(await fs.readFile(path.join(result.path, ".github", "workflows", "validate.yml"), "utf8"), /npx -y codex-automations add \. --list --json/);
+  assert.match(await fs.readFile(path.join(result.path, "README.md"), "utf8"), /npx -y codex-automations add vltansky\/codex-automations/);
+  const workflow = await fs.readFile(path.join(result.path, ".github", "workflows", "validate.yml"), "utf8");
+  assert.match(workflow, /find automations -mindepth 1 -maxdepth 1 -type d/);
+  assert.match(workflow, /npx -y codex-automations add "\$package" --dry-run --json/);
 });
 
 test("collection README generator lists automation packages with npx commands", async () => {
@@ -409,7 +426,18 @@ test("collection README generator lists automation packages with npx commands", 
   await writeCollectionReadme(path.join(temp, "repo"), "vltansky/codex-automations");
   const readme = await fs.readFile(path.join(temp, "repo", "README.md"), "utf8");
   assert.match(readme, /\| `morning-pr-radar` \| Morning PR Radar \|/);
-  assert.match(readme, /npx -y codex-automations add vltansky\/codex-automations --automation morning-pr-radar/);
+  assert.match(readme, /npx -y codex-automations add https:\/\/github.com\/vltansky\/codex-automations\/tree\/main\/automations\/morning-pr-radar/);
+});
+
+test("collection README generator uses configured branch in install commands", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  await writeInstalledSample(env);
+  await exportAutomation("morning-pr-radar", path.join(temp, "repo", "automations", "morning-pr-radar"), env);
+
+  await writeCollectionReadme(path.join(temp, "repo"), "vltansky/codex-automations", { branch: "add/morning-pr-radar" });
+  const readme = await fs.readFile(path.join(temp, "repo", "README.md"), "utf8");
+  assert.match(readme, /tree\/add\/morning-pr-radar\/automations\/morning-pr-radar/);
 });
 
 test("marketplace config supports multiple marketplaces and one default", async () => {
@@ -461,25 +489,18 @@ test("legacy collection config is read as marketplace config", async () => {
   assert.deepEqual(Object.keys(config.marketplaces), ["team"]);
 });
 
-test("marketplace command aliases collection config management", async () => {
-  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
-  const originalEnv = process.env.CODEX_HOME;
+test("old marketplace command is no longer public", async () => {
   const originalLog = console.log;
   const lines = [];
-  process.env.CODEX_HOME = path.join(temp, "codex-home");
   console.log = (message) => lines.push(message);
   try {
-    await main(["marketplace", "add", "team", "--repo", "wix-playground/codex-automations", "--publish-mode", "pr", "--default"]);
-    await main(["marketplace", "list"]);
+    await assert.rejects(() => main(["marketplace"]), /Unknown command: marketplace/);
+    await main(["--help"]);
   } finally {
     console.log = originalLog;
-    if (originalEnv === undefined) delete process.env.CODEX_HOME;
-    else process.env.CODEX_HOME = originalEnv;
   }
 
-  const config = await readConfig({ CODEX_HOME: path.join(temp, "codex-home") });
-  assert.equal(config.defaultMarketplace, "team");
-  assert.match(lines.join("\n"), /team\twix-playground\/codex-automations\tautomations\tpr/);
+  assert.doesNotMatch(lines.join("\n"), /codex-automations marketplace/);
 });
 
 test("connected init stores a default marketplace", async () => {
@@ -500,20 +521,15 @@ test("connected init stores a default marketplace", async () => {
   assert.equal((await readConfig(env)).defaultMarketplace, "team");
 });
 
-test("share uses default marketplace and creates a PR for pr publish mode", async () => {
+test("share --repo --pr creates a pull request", async () => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
   const env = { CODEX_HOME: path.join(temp, "codex-home") };
   await writeInstalledSample(env);
-  await upsertCollection("team", {
-    repo: "wix-playground/codex-automations",
-    path: "automations",
-    branch: "main",
-    publishMode: "pr"
-  }, { makeDefault: true }, env);
   const calls = [];
 
   const result = await shareAutomation("morning-pr-radar", {
-    yes: true,
+    repo: "wix-playground/codex-automations",
+    publishMode: "pr",
     exec: async (command, args, options = {}) => {
       calls.push([command, args, options.cwd]);
       if (command === "gh" && args[0] === "api") return { stdout: "vltansky\n", stderr: "" };
@@ -529,6 +545,7 @@ test("share uses default marketplace and creates a PR for pr publish mode", asyn
 
   assert.equal(result.repo, "wix-playground/codex-automations");
   assert.equal(result.publishMode, "pr");
+  assert.equal(result.installCommand, "npx -y codex-automations add https://github.com/wix-playground/codex-automations/tree/add/morning-pr-radar/automations/morning-pr-radar");
   assert.equal(result.changed, true);
   assert.equal(calls.some(([command, args]) => command === "git" && args[0] === "checkout" && args[1] === "-b"), true);
   assert.equal(calls.some(([command, args]) => command === "gh" && args[0] === "pr" && args[1] === "create"), true);
@@ -549,7 +566,7 @@ test("share explicit repo does not inherit default marketplace publish mode", as
 
   const result = await shareAutomation("morning-pr-radar", {
     repo: "vltansky/codex-automations",
-    yes: true,
+    publishMode: "push",
     exec: async (command, args, options = {}) => {
       calls.push([command, args, options.cwd]);
       if (command === "gh" && args[0] === "api") return { stdout: "vltansky\n", stderr: "" };
@@ -593,9 +610,33 @@ test("share dry-run plans a public marketplace repo without pushing", async () =
   assert.equal(result.dryRun, true);
   assert.equal(result.wouldCreateRepo, true);
   assert.equal(result.packagePath, "automations/morning-pr-radar");
-  assert.equal(result.installCommand, "npx -y codex-automations add vltansky/codex-automations --automation morning-pr-radar");
+  assert.equal(result.installCommand, "npx -y codex-automations add https://github.com/vltansky/codex-automations/tree/add/morning-pr-radar/automations/morning-pr-radar");
   assert.equal(calls.some(([command, args]) => command === "gh" && args.includes("create")), false);
   assert.equal(calls.some(([command, args]) => command === "git" && args[0] === "push"), false);
+});
+
+test("share does not treat GitHub repo check failures as missing repos", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  await writeInstalledSample(env);
+
+  await assert.rejects(
+    () => shareAutomation("morning-pr-radar", {
+      repo: "vltansky/codex-automations",
+      publishMode: "pr",
+      dryRun: true,
+      exec: async (command, args) => {
+        if (command === "gh" && args[0] === "api") return { stdout: "vltansky\n", stderr: "" };
+        if (command === "gh" && args[0] === "repo" && args[1] === "view") {
+          const error = new Error("authentication failed");
+          error.stderr = "HTTP 403: bad credentials";
+          throw error;
+        }
+        return { stdout: "", stderr: "" };
+      }
+    }, env),
+    /Could not check GitHub repo/
+  );
 });
 
 test("share commits and pushes into an existing marketplace repo", async () => {
@@ -606,7 +647,7 @@ test("share commits and pushes into an existing marketplace repo", async () => {
 
   const result = await shareAutomation("morning-pr-radar", {
     repo: "vltansky/codex-automations",
-    yes: true,
+    publishMode: "push",
     exec: async (command, args, options = {}) => {
       calls.push([command, args, options.cwd]);
       if (command === "gh" && args[0] === "api") return { stdout: "vltansky\n", stderr: "" };
@@ -631,7 +672,7 @@ test("share can run as a guided interactive flow", async () => {
   await writeInstalledSample(env);
   const calls = [];
   const questions = [];
-  const answers = ["1", "", "", "y"];
+  const answers = ["1", "", "n", "y", "n"];
   const output = [];
 
   const result = await shareAutomation(undefined, {
@@ -657,11 +698,45 @@ test("share can run as a guided interactive flow", async () => {
   assert.equal(result.repo, "vltansky/codex-automations");
   assert.equal(result.packagePath, "automations/morning-pr-radar");
   assert.equal(questions[0], "Automation to share [1-1]");
-  assert.equal(questions[1], "GitHub marketplace repo [vltansky/codex-automations]");
-  assert.equal(questions[2], "Marketplace path [automations]");
+  assert.equal(questions[1], "GitHub repo [vltansky/codex-automations]");
+  assert.equal(questions[2], "Open a pull request? [Y/n]");
   assert.equal(questions[3], "Publish this automation? [y/N]");
+  assert.equal(questions[4], "Save this destination for next time? [y/N]");
   assert.equal(output.join("").includes("Share summary:"), true);
   assert.equal(calls.some(([command, args]) => command === "gh" && args.includes("create")), true);
+});
+
+test("share can save a user-named destination", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  await writeInstalledSample(env);
+  const answers = ["y", "y", "team"];
+
+  const result = await shareAutomation("morning-pr-radar", {
+    repo: "vltansky/codex-automations",
+    publishMode: "pr",
+    exec: async (command, args, options = {}) => {
+      if (command === "gh" && args[0] === "api") return { stdout: "vltansky\n", stderr: "" };
+      if (command === "gh" && args[0] === "repo" && args[1] === "view") return { stdout: '{"nameWithOwner":"vltansky/codex-automations"}', stderr: "" };
+      if (command === "gh" && args[0] === "repo" && args[1] === "clone") {
+        await fs.mkdir(args[3], { recursive: true });
+        return { stdout: "", stderr: "" };
+      }
+      if (command === "git" && args[0] === "status") return { stdout: "A  automations/morning-pr-radar/automation.toml\n", stderr: "" };
+      if (command === "gh" && args[0] === "pr") return { stdout: "https://github.com/vltansky/codex-automations/pull/7\n", stderr: "" };
+      return { stdout: "", stderr: "" };
+    }
+  }, env, {
+    ask: async () => answers.shift(),
+    write: () => {}
+  });
+
+  const config = await readConfig(env);
+  assert.equal(result.destination, "team");
+  assert.equal(result.prUrl, "https://github.com/vltansky/codex-automations/pull/7");
+  assert.equal(config.defaultMarketplace, "team");
+  assert.equal(config.marketplaces.team.repo, "vltansky/codex-automations");
+  assert.equal(config.marketplaces.team.publishMode, "pr");
 });
 
 test("share interactive flow rejects invalid automation selection", async () => {
@@ -692,6 +767,7 @@ test("share cancellation stops before export and remote writes", async () => {
   await assert.rejects(
     () => shareAutomation("morning-pr-radar", {
       repo: "vltansky/codex-automations",
+      publishMode: "push",
       exec: async (command, args) => {
         calls.push([command, args]);
         if (command === "gh" && args[0] === "api") return { stdout: "vltansky\n", stderr: "" };
@@ -707,6 +783,43 @@ test("share cancellation stops before export and remote writes", async () => {
 
   assert.equal(calls.some(([command, args]) => command === "git" && args[0] === "init"), false);
   assert.equal(calls.some(([command, args]) => command === "gh" && args.includes("create")), false);
+});
+
+test("remove deletes an automation by display name", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const originalCodexHome = process.env.CODEX_HOME;
+  const originalLog = console.log;
+  process.env.CODEX_HOME = path.join(temp, "codex-home");
+  await writeInstalledSample(process.env, "morning-pr-radar", "Morning PR Radar");
+
+  console.log = () => {};
+  try {
+    await main(["remove", "Morning PR Radar", "--force"]);
+  } finally {
+    console.log = originalLog;
+    if (originalCodexHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = originalCodexHome;
+  }
+
+  await assert.rejects(
+    () => fs.access(path.join(temp, "codex-home", "automations", "morning-pr-radar", "automation.toml")),
+    /ENOENT/
+  );
+});
+
+test("remove rejects ambiguous names in non-interactive mode", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const originalCodexHome = process.env.CODEX_HOME;
+  process.env.CODEX_HOME = path.join(temp, "codex-home");
+  await writeInstalledSample(process.env, "morning-pr-radar", "Morning PR Radar");
+  await writeInstalledSample(process.env, "weekly-pr-radar", "Weekly PR Radar");
+
+  try {
+    await assert.rejects(() => main(["remove", "Radar", "--force"]), /Automation name is ambiguous/);
+  } finally {
+    if (originalCodexHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = originalCodexHome;
+  }
 });
 
 async function writeInstalledSample(env, id = "morning-pr-radar", name = "Morning PR Radar") {

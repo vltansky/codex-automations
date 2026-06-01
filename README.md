@@ -1,367 +1,197 @@
 # codex-automations
 
-Share, install, and review Codex App automations from GitHub marketplaces.
+Share and install Codex App automations with a small, memorable CLI.
 
 ```bash
-npx -y codex-automations add owner/automations --automation daily-standup
+npx -y codex-automations add <source>
 npx -y codex-automations share
+npx -y codex-automations list
+npx -y codex-automations remove
 ```
 
-`codex-automations` makes Codex automations portable without replacing Codex's native runtime format. It keeps `automation.toml` as the source of truth, then adds just enough package metadata to publish, inspect, validate, and install automations safely on another machine.
-
-Inspired by tools like `npx skills add owner/repo`, but built for Codex automations.
-
-## Why
-
-Codex automations live locally under:
-
-```text
-$CODEX_HOME/automations/<id>/automation.toml
-```
-
-That works well for one machine, but it is awkward to share:
-
-- `cwds` often point to local absolute paths.
-- `memory.md` contains runtime history that should not be copied by default.
-- Prompts can reference connectors, user-scoped skills, or local paths.
-- Installing by hand makes it easy to overwrite an existing automation or activate something before reviewing it.
-
-`codex-automations` wraps those local files in a portable package and installs them safely.
-
-## Install
-
-Use it with `npx`:
-
-```bash
-npx -y codex-automations --help
-```
+`codex-automations` keeps Codex's native `automation.toml` format as the source of truth, then wraps automations in portable packages that can be shared through GitHub.
 
 Requires Node.js 20 or newer.
 
-## Quickstart: Install
+## Quickstart: Add
 
-List automations in a marketplace:
-
-```bash
-npx -y codex-automations add owner/automations --list
-```
-
-Preview before installing:
+Install from a GitHub repository:
 
 ```bash
-npx -y codex-automations add owner/automations --automation daily-standup --dry-run
-npx -y codex-automations add owner/automations --automation daily-standup --dry-run --view
-```
-
-Install:
-
-```bash
-npx -y codex-automations add owner/automations --automation daily-standup
-```
-
-Install and activate immediately:
-
-```bash
-npx -y codex-automations add owner/automations --automation daily-standup -y
-```
-
-Install a renamed copy:
-
-```bash
-npx -y codex-automations add owner/automations --automation daily-standup --name "Team Standup"
-```
-
-`--name` sets the visible automation name and derives the installed id from that name. For example, `"Team Standup"` installs as `team-standup`. Use the advanced `--id <id>` override only when you need a precise slug.
-
-## Quickstart: Share
-
-Connect your personal marketplace:
-
-```bash
-npx -y codex-automations init personal --repo owner/automations --publish-mode push --default --yes
-```
-
-Share one installed automation:
-
-```bash
-npx -y codex-automations share
-npx -y codex-automations share daily-standup --dry-run
-npx -y codex-automations share daily-standup
-```
-
-Use a PR-based marketplace for team review:
-
-```bash
-npx -y codex-automations init team --repo org/codex-automations --publish-mode pr --default --yes
-npx -y codex-automations share daily-standup --marketplace team
-```
-
-## What It Looks Like
-
-The interactive `share` flow uses select, text, and confirm prompts:
-
-```text
-$ npx -y codex-automations share
-
-? Automation to share
-> daily-standup (Daily Standup)
-  release-notes
-  review-reminder
-
-? GitHub marketplace repo
-> owner/automations
-
-? Marketplace path
-> automations
-
-Share summary
-Automation: daily-standup
-Repository: owner/automations
-Package: automations/daily-standup
-Publish mode: push
-Install: npx -y codex-automations add owner/automations --automation daily-standup
-
-? Publish this automation?
-> Yes
-```
-
-## Marketplace Model
-
-A marketplace is just a GitHub repository with one or more automation packages:
-
-```text
-automations/
-  daily-standup/
-    codex-automation.json
-    automation.toml
-    README.md
-  release-notes/
-    codex-automation.json
-    automation.toml
-    README.md
-```
-
-The generated marketplace README is a catalog with `npx -y codex-automations add ...` install commands. `share` regenerates the same catalog whenever it publishes an automation.
-
-Example marketplace commands:
-
-```bash
-npx -y codex-automations add owner/automations --list
-npx -y codex-automations add owner/automations --automation daily-standup --dry-run
-npx -y codex-automations add owner/automations --automation daily-standup
-```
-
-## Try a Real Marketplace
-
-Use this end-to-end example to try the CLI against a public marketplace:
-
-```bash
-npx -y codex-automations add vltansky/automations --list
-npx -y codex-automations add vltansky/automations --automation morning-pr-radar --dry-run --view
-npx -y codex-automations add vltansky/automations --automation morning-pr-radar --name "Morning PR Radar Copy"
-```
-
-The installed automation is paused by default, so you can review it before activating it in Codex.
-
-## Safe By Default
-
-By default, the CLI:
-
-- Installs automations as `PAUSED`.
-- Asks whether to enable the automation when running interactively.
-- Refuses to overwrite existing automations unless `--replace` is passed.
-- Excludes `memory.md`.
-- Excludes OAuth state, connector state, previous runs, and sessions.
-- Strips `created_at` and `updated_at` on export.
-- Restores install-time timestamps when writing into Codex.
-- Converts exported local `cwds` into `${workspace}`.
-- Maps `${workspace}` to the current directory by default.
-- Supports `--cwd` when you want a different execution directory.
-- Warns about local absolute paths, connector references, and secret-looking prompt text.
-
-Activate explicitly after reviewing:
-
-```bash
-npx -y codex-automations add owner/repo --automation daily-standup --activate
-```
-
-For a non-interactive active install, pass `-y` or `--yes`:
-
-```bash
-npx -y codex-automations add owner/repo --automation daily-standup -y
-```
-
-## Common Recipes
-
-Install from a direct GitHub path:
-
-```bash
-npx -y codex-automations add https://github.com/owner/repo/tree/main/automations/daily-standup
-```
-
-Install multiple automations from one marketplace:
-
-```bash
-npx -y codex-automations add owner/repo --automation daily-standup --automation release-notes
-```
-
-Install everything in a marketplace:
-
-```bash
-npx -y codex-automations add owner/repo --all
-```
-
-Install into a specific workspace:
-
-```bash
-npx -y codex-automations add owner/repo --automation daily-standup --cwd ~/Projects/my-workspace
-```
-
-Inspect and install a local package:
-
-```bash
-npx -y codex-automations inspect ./daily-standup.codex-automation
-npx -y codex-automations install ./daily-standup.codex-automation --dry-run
-npx -y codex-automations install ./daily-standup.codex-automation --name "Daily Standup Copy"
-```
-
-Export one of your local automations:
-
-```bash
-npx -y codex-automations export daily-standup --output ./daily-standup.codex-automation
-```
-
-Share to a specific marketplace:
-
-```bash
-npx -y codex-automations share daily-standup --marketplace team
-```
-
-Share without prompts:
-
-```bash
-npx -y codex-automations share daily-standup --repo owner/automations --yes
-```
-
-## Source Formats
-
-`add` can install from local paths or GitHub sources:
-
-```bash
-# GitHub shorthand
 npx -y codex-automations add owner/repo
+```
 
-# Full GitHub repository URL
-npx -y codex-automations add https://github.com/owner/repo
+Install from a specific package path:
 
-# Direct path to a package or marketplace inside a repo
-npx -y codex-automations add https://github.com/owner/repo/tree/main/automations/my-automation
+```bash
+npx -y codex-automations add https://github.com/owner/repo/tree/main/automations/morning-pr-radar
+```
 
-# Local package or local marketplace
-npx -y codex-automations add ./my-automation.codex-automation
+Install from a pull request while reviewing someone else's automation:
+
+```bash
+npx -y codex-automations add https://github.com/owner/repo/pull/123
+```
+
+Install from a local package or local marketplace:
+
+```bash
+npx -y codex-automations add ./morning-pr-radar.codex-automation
 npx -y codex-automations add ./automations
 ```
 
-Use `--list` to see packages in a source without installing:
+If a source has one automation, it installs directly. If it has multiple automations, the CLI asks which one to install.
+
+Installed automations are paused by default. Activate explicitly when you are ready:
 
 ```bash
-npx -y codex-automations add owner/repo --list
+npx -y codex-automations add owner/repo --activate
 ```
 
-If a source contains multiple automations, choose one with `--automation`:
+Use a local workspace path when the automation should run somewhere specific:
 
 ```bash
-npx -y codex-automations add owner/repo --automation daily-standup
+npx -y codex-automations add owner/repo --cwd ~/Projects/my-workspace
 ```
 
-## Marketplace Config
-
-Marketplaces are stored in:
-
-```text
-$CODEX_HOME/codex-automations/config.json
-```
-
-A config can contain multiple marketplaces and one default:
-
-```json
-{
-  "version": 1,
-  "defaultMarketplace": "team",
-  "marketplaces": {
-    "personal": {
-      "repo": "owner/automations",
-      "path": "automations",
-      "branch": "main",
-      "publishMode": "push"
-    },
-    "team": {
-      "repo": "org/codex-automations",
-      "path": "automations",
-      "branch": "main",
-      "publishMode": "pr"
-    }
-  }
-}
-```
-
-Manage marketplaces with:
+Install with a custom display name:
 
 ```bash
-npx -y codex-automations marketplace
-npx -y codex-automations marketplace add team --repo org/codex-automations --publish-mode pr --default
-npx -y codex-automations marketplace default personal
-npx -y codex-automations marketplace remove team
+npx -y codex-automations add owner/repo --name "Morning PR Radar Copy"
 ```
 
-Legacy aliases remain supported: `collections` is accepted for `marketplace`, and `--collection` is accepted for `--marketplace`.
-
-## Local Marketplace Scaffold
-
-Use `--local` when you only want to scaffold marketplace files into a local directory:
+Preview without writing files:
 
 ```bash
-npx -y codex-automations init --local ./codex-automations --repo owner/codex-automations
+npx -y codex-automations add owner/repo --dry-run
 ```
 
-The local scaffold creates:
+Overwrite an existing installed automation:
 
-```text
-README.md
-automations/.gitkeep
-.github/workflows/validate.yml
+```bash
+npx -y codex-automations add owner/repo --force
 ```
 
-## Sharing Details
+## Quickstart: Share
 
-`share` publishes one of your installed Codex automations into a GitHub marketplace repository. If a default marketplace exists, `share` uses it automatically.
+Share one of your installed automations:
 
-Without a configured marketplace, it uses your `gh` login and targets:
-
-```text
-<github-user>/codex-automations
+```bash
+npx -y codex-automations share
 ```
 
-If the target repo does not exist, `share` can create it as a public GitHub repository. It then exports the automation into:
+The interactive flow asks for only the decisions needed:
 
 ```text
-automations/<id>/
+? Automation to share
+? GitHub repo
+? Open a pull request?
+? Publish this automation?
+? Save this destination for next time?
+? Destination name
+```
+
+No destination names are predefined. If you save a destination, you choose its name.
+
+Share a specific installed automation:
+
+```bash
+npx -y codex-automations share "Morning PR Radar"
+```
+
+Share to a repo and open a pull request:
+
+```bash
+npx -y codex-automations share "Morning PR Radar" --repo owner/repo --pr
+```
+
+Share to a repo by pushing directly:
+
+```bash
+npx -y codex-automations share "Morning PR Radar" --repo owner/repo --push
+```
+
+Preview a share without creating a repo, committing, or pushing:
+
+```bash
+npx -y codex-automations share "Morning PR Radar" --repo owner/repo --pr --dry-run
+```
+
+`share` exports the automation into:
+
+```text
+automations/<slug>/
   codex-automation.json
   automation.toml
   README.md
 ```
 
-Use `--dry-run` to preview without creating a repo, committing, or pushing:
+It also updates the repository README with copy-paste install commands.
+
+## Review Loop
+
+The intended team workflow is:
 
 ```bash
-npx -y codex-automations share daily-standup --repo owner/automations --dry-run --json
+npx -y codex-automations share "Morning PR Radar" --repo owner/repo --pr
 ```
 
-Use `--publish-mode pr` for shared repositories where changes should go through pull requests:
+Then the reviewer installs from the pull request URL:
 
 ```bash
-npx -y codex-automations share daily-standup --marketplace team --publish-mode pr
+npx -y codex-automations add https://github.com/owner/repo/pull/123
 ```
+
+Pull request and branch installs are paused by default, like every other install.
+
+## Manage Installed Automations
+
+List installed automations:
+
+```bash
+npx -y codex-automations list
+```
+
+Remove by display name or slug:
+
+```bash
+npx -y codex-automations remove "Morning PR Radar"
+npx -y codex-automations remove morning-pr-radar --force
+```
+
+If you omit the name, the CLI asks which automation to remove.
+
+## Sources
+
+`add` accepts:
+
+```text
+owner/repo
+https://github.com/owner/repo
+https://github.com/owner/repo/tree/<branch>
+https://github.com/owner/repo/tree/<branch>/automations/<name>
+https://github.com/owner/repo/pull/<number>
+./local-package
+./local-marketplace
+```
+
+## Command Reference
+
+```bash
+codex-automations add <source> [--name <name>] [--cwd <path>] [--activate] [--force] [--dry-run] [--json]
+codex-automations share [name] [--repo <owner/repo>] [--pr|--push] [--dry-run] [--json]
+codex-automations list [--json]
+codex-automations remove [name] [--force] [--json]
+```
+
+## Safety Defaults
+
+- Installs are paused unless `--activate` is passed.
+- Existing automations are not overwritten unless `--force` is passed.
+- `memory.md`, OAuth state, connector state, previous runs, and sessions are not copied.
+- Export strips install-time timestamps and restores fresh timestamps on install.
+- Exported `${workspace}` paths map to the current directory unless `--cwd` is passed.
+- The CLI warns about local absolute paths, connector references, and secret-looking prompt text.
 
 ## Package Format
 
@@ -374,128 +204,16 @@ my-automation.codex-automation/
   README.md
 ```
 
-`automation.toml` is the native Codex automation file. `codex-automation.json` describes the portable package:
+`automation.toml` is the native Codex automation file. `codex-automation.json` adds portable package metadata:
 
 ```json
 {
   "schemaVersion": 1,
-  "name": "local/daily-standup",
-  "version": "0.1.0",
-  "title": "Daily Standup",
-  "description": "Portable Codex automation package for Daily Standup.",
-  "codex": {
-    "automationKinds": ["cron"]
-  },
-  "inputs": [
-    {
-      "name": "workspace",
-      "type": "path",
-      "mapsTo": "cwds[0]",
-      "required": true,
-      "defaultHint": "/Users/example/Projects/workspace"
-    }
-  ],
+  "name": "owner/repo/morning-pr-radar",
+  "title": "Morning PR Radar",
+  "description": "Summarizes pull requests every morning.",
   "install": {
-    "suggestedId": "daily-standup",
-    "includeMemory": false,
-    "defaultStatus": "PAUSED"
+    "suggestedId": "morning-pr-radar"
   }
 }
 ```
-
-## Installed Files
-
-Installs write only automation files and source metadata:
-
-```text
-$CODEX_HOME/automations/<id>/
-  automation.toml
-  codex-automation-source.json
-```
-
-The source sidecar records where the automation came from, which makes future update/remove flows possible without changing Codex's native TOML format.
-
-## JSON Output
-
-Most commands support `--json` for agent and script usage:
-
-```bash
-npx -y codex-automations add owner/repo --list --json
-npx -y codex-automations install ./daily-standup.codex-automation --dry-run --json
-```
-
-Errors are emitted as structured JSON with a stable `code` where possible.
-
-## Command Reference
-
-```text
-npx -y codex-automations list [--json]
-npx -y codex-automations show <id> [--json]
-npx -y codex-automations share [id] [--marketplace <name>] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--dry-run] [--yes] [--json]
-npx -y codex-automations add <source> [--list] [--automation <id>] [--all] [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [-y|--yes] [--json]
-npx -y codex-automations init [name] [--repo <owner/repo>] [--path <dir>] [--publish-mode <push|pr>] [--default] [--yes] [--json]
-npx -y codex-automations init --local [dir] [--repo <owner/repo>] [--json]
-npx -y codex-automations marketplace [list] [--json]
-npx -y codex-automations marketplace add <name> --repo <owner/repo> [--path <dir>] [--publish-mode <push|pr>] [--default] [--json]
-npx -y codex-automations marketplace default <name> [--json]
-npx -y codex-automations marketplace remove <name> [--json]
-npx -y codex-automations export <id> [--output <dir>] [--json]
-npx -y codex-automations inspect <dir> [--json]
-npx -y codex-automations validate <dir> [--json]
-npx -y codex-automations install <dir> [--cwd <path>] [--name <name>] [--id <id>] [--dry-run] [--view] [--replace] [--activate] [-y|--yes] [--json]
-npx -y codex-automations diff <id> <dir>
-npx -y codex-automations uninstall <id> [--keep-memory] [--json]
-```
-
-## Read Next
-
-- [Quickstart: Install](#quickstart-install)
-- [Quickstart: Share](#quickstart-share)
-- [Marketplace Model](#marketplace-model)
-- [Safe By Default](#safe-by-default)
-- [Common Recipes](#common-recipes)
-- [Package Format](#package-format)
-- [Command Reference](#command-reference)
-
-## Development
-
-```bash
-npm test
-npm run lint
-npm run build
-```
-
-`npm run build` currently performs an npm pack dry-run against the public npm registry.
-
-## Publishing
-
-Publishing is handled by GitHub Actions so you do not need to publish from your local machine.
-
-One-time setup:
-
-1. Create an npm automation token with publish access.
-2. Add it to the GitHub repository as `NPM_TOKEN`.
-3. Run the `Publish to npm` workflow from the Actions tab.
-
-You can run a dry-run first by choosing `dry_run: true`.
-
-To publish from a tag:
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-The publish workflow runs `npm ci`, `npm test`, `npm run lint`, and `npm run build` before `npm publish --access public --provenance`.
-
-## Current Limitations
-
-- GitHub support uses shallow `git clone`; it does not use the GitHub API.
-- GitHub tree URL parsing currently supports simple branch names such as `main`.
-- Packages are directories; archive formats are not implemented yet.
-- TOML parsing is intentionally narrow and focused on current Codex automation files.
-- Heartbeat automations are recognized but not deeply modeled because they are thread-bound.
-
-## License
-
-MIT

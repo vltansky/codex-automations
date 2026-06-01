@@ -21,6 +21,7 @@ export function parseSource(source) {
       repo: shorthand[2],
       url: `https://github.com/${shorthand[1]}/${shorthand[2]}.git`,
       ref: undefined,
+      pull: undefined,
       subpath: ""
     };
   }
@@ -41,8 +42,14 @@ export function parseSource(source) {
   const [owner, repoWithSuffix] = parts;
   const repo = repoWithSuffix.replace(/\.git$/, "");
   const treeIndex = parts.indexOf("tree");
-  const ref = treeIndex >= 0 ? parts[treeIndex + 1] : undefined;
-  const subpath = treeIndex >= 0 ? parts.slice(treeIndex + 2).join("/") : "";
+  const pullIndex = parts.indexOf("pull");
+  const treeParts = treeIndex >= 0 ? parts.slice(treeIndex + 1) : [];
+  const ref = treeParts[0];
+  const subpath = treeIndex >= 0 ? treeParts.slice(1).join("/") : "";
+  const pull = pullIndex >= 0 ? Number(parts[pullIndex + 1]) : undefined;
+  if (pullIndex >= 0 && (!Number.isInteger(pull) || pull <= 0)) {
+    fail("unsupported_source", `Invalid GitHub pull request source: ${source}`);
+  }
 
   return {
     type: "github",
@@ -50,6 +57,8 @@ export function parseSource(source) {
     repo,
     url: `https://github.com/${owner}/${repo}.git`,
     ref,
+    pull,
+    treeParts,
     subpath
   };
 }
@@ -60,12 +69,22 @@ export async function resolveSource(source) {
 
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-source-"));
   const cloneDir = path.join(temp, "repo");
+  const resolvedTree = parsed.treeParts?.length ? await resolveTree(parsed.url, parsed.treeParts) : undefined;
+  if (resolvedTree) {
+    parsed.ref = resolvedTree.ref;
+    parsed.subpath = resolvedTree.subpath;
+  }
+
   const args = ["clone", "--depth", "1"];
-  if (parsed.ref) args.push("--branch", parsed.ref);
+  if (parsed.ref && !parsed.pull) args.push("--branch", parsed.ref);
   args.push(parsed.url, cloneDir);
 
   try {
     await execFileAsync("git", args, { maxBuffer: 10 * 1024 * 1024 });
+    if (parsed.pull) {
+      await execFileAsync("git", ["fetch", "--depth", "1", "origin", `pull/${parsed.pull}/head`], { cwd: cloneDir, maxBuffer: 10 * 1024 * 1024 });
+      await execFileAsync("git", ["checkout", "FETCH_HEAD"], { cwd: cloneDir, maxBuffer: 10 * 1024 * 1024 });
+    }
   } catch (error) {
     fail("git_clone_failed", `Failed to clone ${source}: ${error.stderr || error.message}`);
   }
@@ -112,7 +131,7 @@ export function selectPackages(packages, { requested, all = false } = {}) {
   const requestedList = normalizeRequested(requested);
   if (requestedList.length === 0 && packages.length === 1) return [packages[0]];
   if (requestedList.length === 0) {
-    fail("multiple_packages_found", "Multiple packages found; pass --automation <id>", {
+    fail("multiple_packages_found", "Multiple packages found; use a direct package path", {
       automations: packages.map((pkg) => pkg.id)
     });
   }
@@ -124,6 +143,26 @@ export function selectPackages(packages, { requested, all = false } = {}) {
     if (!selected) fail("package_not_found", `Automation not found in source: ${item}`);
     return selected;
   });
+}
+
+async function resolveTree(url, treeParts) {
+  const heads = await execFileAsync("git", ["ls-remote", "--heads", url], { maxBuffer: 10 * 1024 * 1024 })
+    .then(({ stdout }) => stdout
+      .split("\n")
+      .map((line) => line.match(/refs\/heads\/(.+)$/)?.[1])
+      .filter(Boolean))
+    .catch(() => []);
+
+  for (let count = treeParts.length; count > 0; count -= 1) {
+    const candidate = treeParts.slice(0, count).join("/");
+    if (heads.includes(candidate) || count === 1) {
+      return {
+        ref: candidate,
+        subpath: treeParts.slice(count).join("/")
+      };
+    }
+  }
+  return undefined;
 }
 
 function normalizeRequested(requested) {
