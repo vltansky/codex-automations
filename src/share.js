@@ -20,11 +20,12 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
   const ownerRepo = options.repo || await promptWithDefault("GitHub repo", saved?.repo || defaultRepo, io, options);
   assertOwnerRepo(ownerRepo);
 
-  const collectionPath = "automations";
-  const branch = saved?.repo === ownerRepo ? saved.branch : "main";
+  const matchingSavedDestination = saved?.repo === ownerRepo ? saved : undefined;
+  const collectionPath = stripSlashes(matchingSavedDestination?.path || "automations");
+  const branch = matchingSavedDestination?.branch || "main";
   const publishMode = options.publishMode || await promptPublishMode(saved?.repo === ownerRepo ? saved.publishMode : undefined, io, options);
   if (!["push", "pr"].includes(publishMode)) fail("invalid_publish_mode", "Publish mode must be push or pr");
-  const packagePath = `${collectionPath.replace(/^\/|\/$/g, "")}/${selectedId}`;
+  const packagePath = `${collectionPath}/${selectedId}`;
   const repoExists = await githubRepoExists(exec, ownerRepo);
   const repoUrl = `https://github.com/${ownerRepo}`;
   const publishBranch = publishMode === "pr" ? `add/${selectedId}` : branch;
@@ -56,7 +57,7 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
     const targetDir = path.join(repoDir, packagePath);
     await exportAutomation(selectedId, targetDir, env);
     await stampSharedManifest(targetDir, ownerRepo, packagePath, repoUrl);
-    await writeCollectionReadme(repoDir, ownerRepo, { branch });
+    await writeCollectionReadme(repoDir, ownerRepo, { branch: publishBranch });
 
     if (options.dryRun) {
       return {
@@ -69,7 +70,7 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
         repoUrl,
         installCommand,
         publishMode,
-        destination: saved?.repo === ownerRepo ? saved.name : undefined
+        destination: matchingSavedDestination?.name
       };
     }
 
@@ -92,7 +93,7 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
     await exec("git", ["add", "README.md", packagePath], { cwd: repoDir });
     const status = (await exec("git", ["status", "--porcelain"], { cwd: repoDir })).stdout.trim();
     if (!status) {
-      return { ok: true, repo: ownerRepo, repoUrl, packagePath, changed: false, installCommand, publishMode, destination: saved?.repo === ownerRepo ? saved.name : undefined };
+      return { ok: true, repo: ownerRepo, repoUrl, packagePath, changed: false, installCommand, publishMode, destination: matchingSavedDestination?.name };
     }
 
     const message = options.message || `Add ${selectedId} Codex automation`;
@@ -127,7 +128,7 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
       env,
       io,
       options,
-      existing: saved?.repo === ownerRepo ? saved.name : undefined
+      existing: matchingSavedDestination?.name
     });
 
     return {
@@ -144,6 +145,10 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
   } finally {
     if (!options.keepTemp) await fs.rm(temp, { recursive: true, force: true });
   }
+}
+
+function stripSlashes(value) {
+  return String(value).replace(/^\/|\/$/g, "");
 }
 
 async function stampSharedManifest(targetDir, ownerRepo, packagePath, repoUrl) {

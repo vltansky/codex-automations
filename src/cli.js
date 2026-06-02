@@ -41,7 +41,7 @@ async function shareCommand(id, flags, json) {
     publishMode: flags.pr ? "pr" : flags.push ? "push" : undefined,
     dryRun: Boolean(flags["dry-run"])
   });
-  return print(result, json);
+  return json ? print(result, json) : printShareResult(result);
 }
 
 async function listCommand(json) {
@@ -174,6 +174,26 @@ function print(value, json) {
     return;
   }
   console.log(JSON.stringify(value, null, 2));
+}
+
+export function formatShareResult(result) {
+  const lines = [];
+  if (result.dryRun) {
+    lines.push(`Would share: ${result.packagePath}`);
+  } else if (result.changed === false) {
+    lines.push(`No changes to share: ${result.packagePath}`);
+  } else {
+    lines.push(`Shared: ${result.packagePath}`);
+  }
+  if (result.repo) lines.push(`Repository: ${result.repo}`);
+  if (result.prUrl) lines.push(`Pull request: ${result.prUrl}`);
+  if (result.installCommand) lines.push(`Install: ${result.installCommand}`);
+  if (result.destination) lines.push(`Destination: ${result.destination}`);
+  return lines.join("\n");
+}
+
+function printShareResult(result) {
+  console.log(formatShareResult(result));
 }
 
 function printInstallResult(value) {

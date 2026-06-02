@@ -25,7 +25,7 @@ import { initCollection, initConnectedCollection, writeCollectionReadme } from "
 import { shareAutomation } from "../src/share.js";
 import { discoverPackages, parseSource, selectPackage, selectPackages } from "../src/source.js";
 import { parseAutomationToml, stringifyAutomationToml } from "../src/toml.js";
-import { main } from "../src/cli.js";
+import { formatShareResult, main } from "../src/cli.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -550,6 +550,63 @@ test("share --repo --pr creates a pull request", async () => {
   assert.equal(calls.some(([command, args]) => command === "git" && args[0] === "checkout" && args[1] === "-b"), true);
   assert.equal(calls.some(([command, args]) => command === "gh" && args[0] === "pr" && args[1] === "create"), true);
   assert.equal(calls.some(([command, args]) => command === "git" && args[0] === "push" && args.includes("main")), false);
+});
+
+test("share result formats human PR output", () => {
+  const output = formatShareResult({
+    ok: true,
+    repo: "wix-playground/codex-automations",
+    prUrl: "https://github.com/wix-playground/codex-automations/pull/7",
+    packagePath: "automations/morning-pr-radar",
+    changed: true,
+    installCommand: "npx -y codex-automations add https://github.com/wix-playground/codex-automations/tree/add/morning-pr-radar/automations/morning-pr-radar",
+    publishMode: "pr",
+    destination: "team"
+  });
+
+  assert.equal(output, [
+    "Shared: automations/morning-pr-radar",
+    "Repository: wix-playground/codex-automations",
+    "Pull request: https://github.com/wix-playground/codex-automations/pull/7",
+    "Install: npx -y codex-automations add https://github.com/wix-playground/codex-automations/tree/add/morning-pr-radar/automations/morning-pr-radar",
+    "Destination: team"
+  ].join("\n"));
+});
+
+test("share honors saved destination path and branch for matching repo", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "codex-automation-"));
+  const env = { CODEX_HOME: path.join(temp, "codex-home") };
+  await writeInstalledSample(env);
+  await upsertCollection("team", {
+    repo: "wix-playground/codex-automations",
+    path: "team/automations",
+    branch: "trunk",
+    publishMode: "pr"
+  }, { makeDefault: true }, env);
+  const calls = [];
+
+  const result = await shareAutomation("morning-pr-radar", {
+    repo: "wix-playground/codex-automations",
+    publishMode: "pr",
+    exec: async (command, args, options = {}) => {
+      calls.push([command, args, options.cwd]);
+      if (command === "gh" && args[0] === "api") return { stdout: "vltansky\n", stderr: "" };
+      if (command === "gh" && args[0] === "repo" && args[1] === "view") return { stdout: '{"nameWithOwner":"wix-playground/codex-automations"}', stderr: "" };
+      if (command === "gh" && args[0] === "repo" && args[1] === "clone") {
+        await fs.mkdir(args[3], { recursive: true });
+        return { stdout: "", stderr: "" };
+      }
+      if (command === "git" && args[0] === "status") return { stdout: "A  team/automations/morning-pr-radar/automation.toml\n", stderr: "" };
+      if (command === "gh" && args[0] === "pr") return { stdout: "https://github.com/wix-playground/codex-automations/pull/9\n", stderr: "" };
+      return { stdout: "", stderr: "" };
+    }
+  }, env);
+
+  assert.equal(result.destination, "team");
+  assert.equal(result.packagePath, "team/automations/morning-pr-radar");
+  assert.equal(result.installCommand, "npx -y codex-automations add https://github.com/wix-playground/codex-automations/tree/add/morning-pr-radar/team/automations/morning-pr-radar");
+  assert.equal(calls.some(([command, args]) => command === "gh" && args[0] === "pr" && args.includes("--base") && args.includes("trunk")), true);
+  assert.equal(calls.some(([command, args]) => command === "git" && args[0] === "add" && args.includes("team/automations/morning-pr-radar")), true);
 });
 
 test("share explicit repo does not inherit default marketplace publish mode", async () => {
