@@ -173,8 +173,8 @@ function normalizeRequested(requested) {
 async function collectCandidates(root, current, candidates, depth) {
   const manifest = path.join(current, MANIFEST_NAME);
   const automation = path.join(current, AUTOMATION_NAME);
-  const hasPackage = await Promise.all([exists(manifest), exists(automation)]).then(([a, b]) => a && b);
-  if (hasPackage) {
+  const hasPackageFile = await Promise.all([exists(manifest), exists(automation)]).then(([a, b]) => a || b);
+  if (hasPackageFile) {
     candidates.push(current);
     return;
   }

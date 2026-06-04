@@ -8,6 +8,32 @@ export const MANIFEST_NAME = "codex-automation.json";
 export const AUTOMATION_NAME = "automation.toml";
 export const SOURCE_NAME = "codex-automation-source.json";
 
+/**
+ * @typedef {Record<string, unknown>} AutomationToml
+ *
+ * @typedef {object} CodexAutomationManifest
+ * @property {number} schemaVersion
+ * @property {string} name
+ * @property {string} version
+ * @property {string=} title
+ * @property {string=} description
+ * @property {{ suggestedId?: string, includeMemory?: boolean, defaultStatus?: string }=} install
+ *
+ * @typedef {object} AutomationPackage
+ * @property {string} packagePath
+ * @property {string} manifestPath
+ * @property {string} automationPath
+ * @property {CodexAutomationManifest} manifest
+ * @property {AutomationToml} automation
+ *
+ * @typedef {object} InstallPlan
+ * @property {boolean} ok
+ * @property {string=} target
+ * @property {AutomationToml=} automation
+ * @property {Array<{ code?: string, message?: string }>} errors
+ * @property {Array<{ code?: string, message?: string }>} warnings
+ */
+
 export function codexHome(env = process.env) {
   return env.CODEX_HOME || path.join(os.homedir(), ".codex");
 }
@@ -72,8 +98,10 @@ export async function readPackage(packagePath) {
 
   const manifestPath = path.join(packagePath, MANIFEST_NAME);
   const automationFile = path.join(packagePath, AUTOMATION_NAME);
-  const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
-  const automation = parseAutomationToml(await fs.readFile(automationFile, "utf8"));
+  const manifestText = await readPackageText(manifestPath, "package_manifest_missing", "manifest");
+  const automationText = await readPackageText(automationFile, "package_automation_missing", "automation file");
+  const manifest = parseManifestJson(manifestText, manifestPath);
+  const automation = parsePackageAutomationToml(automationText, automationFile);
   return { packagePath, manifestPath, automationPath: automationFile, manifest, automation };
 }
 
@@ -314,4 +342,32 @@ function slugifyName(value) {
     .replace(/^-+|-+$/g, "");
   if (!slug) fail("invalid_name", "Name must contain at least one letter or number");
   return slug;
+}
+
+async function readPackageText(file, missingCode, label) {
+  try {
+    return await fs.readFile(file, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") fail(missingCode, `Package ${label} not found: ${file}`);
+    throw error;
+  }
+}
+
+function parseManifestJson(text, manifestPath) {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    fail("invalid_manifest_json", `Invalid package manifest JSON at ${manifestPath}: ${error.message}`);
+  }
+}
+
+function parsePackageAutomationToml(text, automationFile) {
+  try {
+    return parseAutomationToml(text);
+  } catch (error) {
+    if (error.code === "invalid_toml") {
+      fail("invalid_automation_toml", `Invalid package automation TOML at ${automationFile}: ${error.message}`);
+    }
+    throw error;
+  }
 }
