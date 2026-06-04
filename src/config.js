@@ -5,6 +5,19 @@ import { fail } from "./errors.js";
 
 export const CONFIG_NAME = "config.json";
 
+/**
+ * @typedef {object} MarketplaceConfigEntry
+ * @property {string} repo
+ * @property {string} path
+ * @property {string} branch
+ * @property {"push" | "pr"} publishMode
+ *
+ * @typedef {object} CodexAutomationsConfig
+ * @property {number} version
+ * @property {string=} defaultMarketplace
+ * @property {Record<string, MarketplaceConfigEntry>} marketplaces
+ */
+
 export function configDir(env = process.env) {
   return path.join(codexHome(env), "codex-automations");
 }
