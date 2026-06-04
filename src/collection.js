@@ -5,6 +5,9 @@ import { upsertCollection } from "./config.js";
 import { fail } from "./errors.js";
 import { discoverPackages } from "./source.js";
 
+export const README_BLOCK_START = "<!-- codex-automations:start -->";
+export const README_BLOCK_END = "<!-- codex-automations:end -->";
+
 export async function writeCollectionReadme(repoDir, ownerRepo = "owner/codex-automations", options = {}) {
   const branch = options.branch || "main";
   const packages = await discoverPackages(repoDir);
@@ -14,10 +17,25 @@ export async function writeCollectionReadme(repoDir, ownerRepo = "owner/codex-au
     return `| \`${pkg.id}\` | ${escapeCell(pkg.title)} | ${escapeCell(description)} | \`npx -y codex-automations add https://github.com/${ownerRepo}/tree/${branch}/${rel}\` | [${rel}](./${rel}) |`;
   });
 
-  await fs.writeFile(path.join(repoDir, "README.md"), `# Codex Automations
+  const readmePath = path.join(repoDir, "README.md");
+  const existing = await fs.readFile(readmePath, "utf8").catch((error) => {
+    if (error.code === "ENOENT") return undefined;
+    throw error;
+  });
+  await fs.writeFile(readmePath, upsertGeneratedReadmeBlock(existing, renderGeneratedReadmeBlock(ownerRepo, rows)));
+}
+
+function renderDefaultReadme(block) {
+  return `# Codex Automations
 
 Shared Codex automation packages.
 
+${block}
+`;
+}
+
+function renderGeneratedReadmeBlock(ownerRepo, rows) {
+  return `${README_BLOCK_START}
 ## Install
 
 \`\`\`bash
@@ -30,7 +48,21 @@ npx -y codex-automations add https://github.com/${ownerRepo}/pull/<number>
 | ID | Title | Description | Install | Source |
 |---|---|---|---|---|
 ${rows.join("\n")}
-`);
+${README_BLOCK_END}`;
+}
+
+function upsertGeneratedReadmeBlock(existing, block) {
+  if (!existing) return renderDefaultReadme(block);
+
+  const start = existing.indexOf(README_BLOCK_START);
+  const end = existing.indexOf(README_BLOCK_END);
+  if (start >= 0 && end >= start) {
+    const before = existing.slice(0, start).trimEnd();
+    const after = existing.slice(end + README_BLOCK_END.length).trimStart();
+    return [before, block, after].filter(Boolean).join("\n\n") + "\n";
+  }
+
+  return `${existing.trimEnd()}\n\n${block}\n`;
 }
 
 export async function initCollection(targetDir, options = {}) {
