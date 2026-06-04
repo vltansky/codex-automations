@@ -11,11 +11,33 @@ import { fail } from "./errors.js";
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * @typedef {object} ShareOptions
+ * @property {string=} repo
+ * @property {"pr" | "push"=} publishMode
+ * @property {boolean=} dryRun
+ * @property {boolean=} keepTemp
+ * @property {string=} message
+ * @property {(command: string, args: string[], options?: object) => Promise<{ stdout?: string, stderr?: string }>=} exec
+ *
+ * @typedef {object} ShareResult
+ * @property {boolean} ok
+ * @property {string} repo
+ * @property {string} repoUrl
+ * @property {string} packagePath
+ * @property {string} installCommand
+ * @property {"pr" | "push"} publishMode
+ * @property {boolean=} dryRun
+ * @property {boolean=} changed
+ * @property {string=} prUrl
+ * @property {string=} destination
+ */
+
 export async function shareAutomation(id, options = {}, env = process.env, io = {}) {
   const exec = options.exec || run;
-  const login = await getGithubLogin(exec);
   const selectedId = id ? (await resolveInstalledAutomation(id, env)).automation.id : await promptForAutomation(env, io);
   const saved = await defaultDestination(env);
+  const login = options.repo ? undefined : await getGithubLogin(exec);
   const defaultRepo = `${login}/codex-automations`;
   const ownerRepo = options.repo || await promptWithDefault("GitHub repo", saved?.repo || defaultRepo, io, options);
   assertOwnerRepo(ownerRepo);
@@ -26,10 +48,24 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
   const publishMode = options.publishMode || await promptPublishMode(saved?.repo === ownerRepo ? saved.publishMode : undefined, io, options);
   if (!["push", "pr"].includes(publishMode)) fail("invalid_publish_mode", "Publish mode must be push or pr");
   const packagePath = `${collectionPath}/${selectedId}`;
-  const repoExists = await githubRepoExists(exec, ownerRepo);
   const repoUrl = `https://github.com/${ownerRepo}`;
   const publishBranch = publishMode === "pr" ? `add/${selectedId}` : branch;
   const installCommand = `npx -y codex-automations add ${repoUrl}/tree/${publishBranch}/${packagePath}`;
+
+  if (isExplicitDryRun(id, options)) {
+    return {
+      ok: true,
+      dryRun: true,
+      repo: ownerRepo,
+      packagePath,
+      repoUrl,
+      installCommand,
+      publishMode,
+      destination: matchingSavedDestination?.name
+    };
+  }
+
+  const repoExists = await githubRepoExists(exec, ownerRepo);
 
   const confirmed = options.dryRun || nonInteractiveExplicitShare(options, io) || await confirmShare({
     id: selectedId,
@@ -149,6 +185,10 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
 
 function stripSlashes(value) {
   return String(value).replace(/^\/|\/$/g, "");
+}
+
+function isExplicitDryRun(id, options) {
+  return Boolean(id && options.dryRun && options.repo && options.publishMode);
 }
 
 async function stampSharedManifest(targetDir, ownerRepo, packagePath, repoUrl) {
