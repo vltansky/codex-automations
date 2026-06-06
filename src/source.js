@@ -95,7 +95,10 @@ export async function resolveSource(source) {
 }
 
 export async function discoverPackages(root) {
-  const stat = await fs.stat(root).catch(() => fail("source_not_found", `Source path not found: ${root}`));
+  const stat = await fs.stat(root).catch((error) => {
+    if (error.code === "ENOENT") fail("source_not_found", `Source path not found: ${root}`);
+    fail("source_read_error", `Cannot read source path ${root}: ${error.message}`);
+  });
   if (!stat.isDirectory()) fail("source_not_directory", `Source path is not a directory: ${root}`);
 
   const candidates = [];
@@ -148,7 +151,10 @@ async function resolveTree(url, treeParts) {
       .split("\n")
       .map((line) => line.match(/refs\/heads\/(.+)$/)?.[1])
       .filter(Boolean))
-    .catch(() => []);
+    .catch((error) => {
+      process.emitWarning(`Failed to list remote refs for ${url}: ${error.message}`);
+      return [];
+    });
 
   for (let count = treeParts.length; count > 0; count -= 1) {
     const candidate = treeParts.slice(0, count).join("/");
@@ -177,7 +183,12 @@ async function collectCandidates(root, current, candidates, depth) {
   }
   if (depth >= 4) return;
 
-  const entries = await fs.readdir(current, { withFileTypes: true }).catch(() => []);
+  const entries = await fs.readdir(current, { withFileTypes: true }).catch((error) => {
+    if (error.code !== "ENOENT") {
+      process.emitWarning(`Cannot read directory ${current}: ${error.message}`);
+    }
+    return [];
+  });
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     if (entry.name === ".git" || entry.name === "node_modules") continue;

@@ -34,13 +34,13 @@ export function configPath(env = process.env) {
 export async function readConfig(env = process.env) {
   const file = configPath(env);
   try {
-    const parsed = JSON.parse(await fs.readFile(file, "utf8"));
+    const parsed = safeJsonParse(await fs.readFile(file, "utf8"), file);
     return normalizeConfig(parsed);
   } catch (error) {
     if (error.code === "ENOENT") {
       const legacyFile = path.join(legacyConfigDir(env), CONFIG_NAME);
       return fs.readFile(legacyFile, "utf8")
-        .then((text) => normalizeConfig(JSON.parse(text)))
+        .then((text) => normalizeConfig(safeJsonParse(text, legacyFile)))
         .catch((legacyError) => {
           if (legacyError.code === "ENOENT") return normalizeConfig({});
           throw legacyError;
@@ -132,5 +132,13 @@ function normalizeCollection(collection) {
 function assertCollectionName(name) {
   if (!/^[A-Za-z0-9_.-]+$/.test(String(name || ""))) {
     fail("invalid_marketplace_name", `Invalid marketplace name: ${name}`);
+  }
+}
+
+function safeJsonParse(text, file) {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    fail("invalid_config_json", `Invalid config JSON at ${file}: ${error.message}`);
   }
 }
