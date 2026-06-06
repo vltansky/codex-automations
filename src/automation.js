@@ -43,11 +43,20 @@ export function automationRoot(env = process.env) {
   return path.join(codexHome(env), "automations");
 }
 
+export function assertSafeId(id) {
+  if (typeof id !== "string" || !id || /[/\\]|\.\.|\0/.test(id) || !/^[A-Za-z0-9_.-]+$/.test(id)) {
+    fail("invalid_automation_id", `Unsafe automation id: ${id}`);
+  }
+  return id;
+}
+
 export function automationPath(id, env = process.env) {
+  assertSafeId(id);
   return path.join(automationRoot(env), id, AUTOMATION_NAME);
 }
 
 export function sourceMetadataPath(id, env = process.env) {
+  assertSafeId(id);
   return path.join(automationRoot(env), id, SOURCE_NAME);
 }
 

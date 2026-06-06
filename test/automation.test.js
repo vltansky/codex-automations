@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import {
+  assertSafeId,
   automationPath,
   automationRoot,
   codexHome,
@@ -428,4 +429,29 @@ test("readPackage rejects non-directory packages", async () => {
 
 test("readPackage rejects nonexistent path", async () => {
   await assert.rejects(() => readPackage("/nonexistent/path"), { code: "package_not_found" });
+});
+
+test("assertSafeId rejects path traversal and unsafe characters", () => {
+  assert.throws(() => assertSafeId("../etc/passwd"), { code: "invalid_automation_id" });
+  assert.throws(() => assertSafeId(".."), { code: "invalid_automation_id" });
+  assert.throws(() => assertSafeId("foo/../bar"), { code: "invalid_automation_id" });
+  assert.throws(() => assertSafeId("foo/bar"), { code: "invalid_automation_id" });
+  assert.throws(() => assertSafeId("foo\\bar"), { code: "invalid_automation_id" });
+  assert.throws(() => assertSafeId(""), { code: "invalid_automation_id" });
+  assert.throws(() => assertSafeId("foo bar"), { code: "invalid_automation_id" });
+  assert.throws(() => assertSafeId(null), { code: "invalid_automation_id" });
+  assert.equal(assertSafeId("morning-pr-radar"), "morning-pr-radar");
+  assert.equal(assertSafeId("my_automation.v2"), "my_automation.v2");
+  assert.equal(assertSafeId("CamelCase123"), "CamelCase123");
+});
+
+test("prepareInstall rejects malicious suggestedId with path traversal", async () => {
+  const { temp, env } = await makeTempEnv();
+  await writeInstalledSample(env);
+  const packageDir = path.join(temp, "morning-pr-radar.codex-automation");
+  await exportAutomation("morning-pr-radar", packageDir, env);
+  const pkg = await readPackage(packageDir);
+  pkg.manifest.install.suggestedId = "../../etc/cron.d/backdoor";
+
+  assert.throws(() => prepareInstall(pkg, { cwd: temp }, env), { code: "invalid_automation_id" });
 });

@@ -46,7 +46,7 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
   if (!["push", "pr"].includes(publishMode)) fail("invalid_publish_mode", "Publish mode must be push or pr");
   const packagePath = `${collectionPath}/${selectedId}`;
   const repoUrl = `https://github.com/${ownerRepo}`;
-  const publishBranch = publishMode === "pr" ? `add/${selectedId}` : branch;
+  const publishBranch = publishMode === "pr" ? `add/${sanitizeBranchName(selectedId)}` : branch;
   const installCommand = `npx -y codex-automations add ${repoUrl}/tree/${publishBranch}/${packagePath}`;
 
   if (isExplicitDryRun(id, options)) {
@@ -335,6 +335,15 @@ function write(io, message) {
     return;
   }
   process.stdout.write(message);
+}
+
+function sanitizeBranchName(value) {
+  return String(value)
+    .replace(/[~^:?*[\]\\@{}\s]/g, "-")
+    .replace(/\.{2,}/g, "-")
+    .replace(/\.lock$/i, "-lock")
+    .replace(/^[.-]+|[.-]+$/g, "")
+    .replace(/-{2,}/g, "-") || "automation";
 }
 
 async function run(command, args, options = {}) {
