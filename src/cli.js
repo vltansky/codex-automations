@@ -67,7 +67,7 @@ async function addCommand(source, flags, json) {
     if (!result.ok) process.exitCode = 1;
     return json ? print({ ...result, source, selected: selected.id }, json) : printInstallResult({ ...result, source, selected: selected.id });
   } finally {
-    await resolved.cleanup();
+    await resolved.cleanup().catch(() => {});
   }
 }
 

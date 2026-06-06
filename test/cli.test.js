@@ -238,5 +238,5 @@ test("binary reports stable package read errors in JSON and human output", async
     }
   );
 
-  assert.equal(repoRoot.endsWith("codex-automation"), true);
+  assert.equal(repoRoot.endsWith("codex-automations"), true);
 });

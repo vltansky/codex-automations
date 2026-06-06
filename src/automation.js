@@ -74,8 +74,10 @@ export async function listAutomations(env = process.env) {
         status: automation.status || "",
         path: file
       });
-    } catch {
-      rows.push({ id: entry.name, name: "", kind: "", status: "invalid", path: file });
+    } catch (error) {
+      if (error.code !== "ENOENT") {
+        rows.push({ id: entry.name, name: "", kind: "", status: "invalid", path: file, error: error.message });
+      }
     }
   }
   return rows.sort((a, b) => a.id.localeCompare(b.id));
@@ -94,7 +96,10 @@ export async function readInstalled(id, env = process.env) {
 }
 
 export async function readPackage(packagePath) {
-  const stat = await fs.stat(packagePath).catch(() => fail("package_not_found", `Package not found: ${packagePath}`));
+  const stat = await fs.stat(packagePath).catch((error) => {
+    if (error.code === "ENOENT") fail("package_not_found", `Package not found: ${packagePath}`);
+    fail("package_read_error", `Cannot read package at ${packagePath}: ${error.message}`);
+  });
   if (!stat.isDirectory()) fail("unsupported_package", "Only directory packages are supported in this version");
 
   const manifestPath = path.join(packagePath, MANIFEST_NAME);

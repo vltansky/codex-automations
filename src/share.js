@@ -176,7 +176,7 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
       destination
     };
   } finally {
-    if (!options.keepTemp) await fs.rm(temp, { recursive: true, force: true });
+    if (!options.keepTemp) await fs.rm(temp, { recursive: true, force: true }).catch(() => {});
   }
 }
 
