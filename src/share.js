@@ -1,15 +1,12 @@
-import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
-import { cancel, confirm, isCancel, note, select, text } from "@clack/prompts";
+import { confirm, note, select } from "@clack/prompts";
 import { exportAutomation, listAutomations, readPackage, resolveInstalledAutomation } from "./automation.js";
 import { writeCollectionReadme } from "./collection.js";
 import { readConfig, upsertCollection } from "./config.js";
 import { fail } from "./errors.js";
-
-const execFileAsync = promisify(execFile);
+import { ask, assertOwnerRepo, ensureNotCancelled, execFileAsync, promptWithDefault, stripSlashes } from "./utils.js";
 
 /**
  * @typedef {object} ShareOptions
@@ -183,10 +180,6 @@ export async function shareAutomation(id, options = {}, env = process.env, io = 
   }
 }
 
-function stripSlashes(value) {
-  return String(value).replace(/^\/|\/$/g, "");
-}
-
 function isExplicitDryRun(id, options) {
   return Boolean(id && options.dryRun && options.repo && options.publishMode);
 }
@@ -265,20 +258,6 @@ async function promptForAutomation(env, io) {
   return valid[index].id;
 }
 
-async function promptWithDefault(label, defaultValue, io, options) {
-  if (options.dryRun) return defaultValue;
-  if (!io.ask) {
-    const answer = await text({
-      message: label,
-      defaultValue,
-      placeholder: defaultValue
-    });
-    return String(ensureNotCancelled(answer)).trim() || defaultValue;
-  }
-  const answer = await ask(`${label} [${defaultValue}]`, io);
-  return answer.trim() || defaultValue;
-}
-
 async function promptPublishMode(defaultValue, io, options) {
   if (options.dryRun) return defaultValue || "pr";
   if (!io.ask) {
@@ -350,11 +329,6 @@ async function confirmShare({ id, ownerRepo, packagePath, repoExists, publishMod
   return /^y(es)?$/i.test(answer.trim());
 }
 
-async function ask(question, io) {
-  if (io.ask) return io.ask(question);
-  fail("confirmation_required", "Run in an interactive terminal");
-}
-
 function write(io, message) {
   if (io.write) {
     io.write(message);
@@ -363,20 +337,6 @@ function write(io, message) {
   process.stdout.write(message);
 }
 
-function assertOwnerRepo(value) {
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value)) {
-    fail("invalid_repo", `Expected repo as owner/name, got: ${value}`);
-  }
-}
-
 async function run(command, args, options = {}) {
   return execFileAsync(command, args, { ...options, maxBuffer: 10 * 1024 * 1024 });
-}
-
-function ensureNotCancelled(value) {
-  if (isCancel(value)) {
-    cancel("Cancelled");
-    fail("operation_cancelled", "Operation cancelled");
-  }
-  return value;
 }

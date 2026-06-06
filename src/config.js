@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { codexHome } from "./automation.js";
 import { fail } from "./errors.js";
+import { assertOwnerRepo, stripSlashes } from "./utils.js";
 
 export const CONFIG_NAME = "config.json";
 
@@ -132,14 +133,4 @@ function assertCollectionName(name) {
   if (!/^[A-Za-z0-9_.-]+$/.test(String(name || ""))) {
     fail("invalid_marketplace_name", `Invalid marketplace name: ${name}`);
   }
-}
-
-function assertOwnerRepo(value) {
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value)) {
-    fail("invalid_repo", `Expected repo as owner/name, got: ${value}`);
-  }
-}
-
-function stripSlashes(value) {
-  return String(value).replace(/^\/|\/$/g, "");
 }

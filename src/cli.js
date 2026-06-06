@@ -1,5 +1,6 @@
 import path from "node:path";
-import { cancel, confirm, isCancel, select } from "@clack/prompts";
+import { confirm, select } from "@clack/prompts";
+import { ensureNotCancelled } from "./utils.js";
 import {
   installPackage,
   listAutomations,
@@ -151,13 +152,7 @@ function isInteractiveTerminal() {
   return Boolean(process.stdin.isTTY && process.stdout.isTTY);
 }
 
-function ensureNotCancelled(value, message) {
-  if (isCancel(value)) {
-    cancel(message);
-    fail("operation_cancelled", message);
-  }
-  return value;
-}
+
 
 function print(value, json) {
   if (json) {

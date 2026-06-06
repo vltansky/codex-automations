@@ -1,12 +1,9 @@
-import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
 import { AUTOMATION_NAME, MANIFEST_NAME, readPackage } from "./automation.js";
 import { fail } from "./errors.js";
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync, expandHome, fileExists } from "./utils.js";
 
 export function parseSource(source) {
   if (source.startsWith(".") || source.startsWith("/") || source.startsWith("~")) {
@@ -173,7 +170,7 @@ function normalizeRequested(requested) {
 async function collectCandidates(root, current, candidates, depth) {
   const manifest = path.join(current, MANIFEST_NAME);
   const automation = path.join(current, AUTOMATION_NAME);
-  const hasPackageFile = await Promise.all([exists(manifest), exists(automation)]).then(([a, b]) => a || b);
+  const hasPackageFile = await Promise.all([fileExists(manifest), fileExists(automation)]).then(([a, b]) => a || b);
   if (hasPackageFile) {
     candidates.push(current);
     return;
@@ -186,13 +183,4 @@ async function collectCandidates(root, current, candidates, depth) {
     if (entry.name === ".git" || entry.name === "node_modules") continue;
     await collectCandidates(root, path.join(current, entry.name), candidates, depth + 1);
   }
-}
-
-async function exists(file) {
-  return fs.access(file).then(() => true, () => false);
-}
-
-function expandHome(value) {
-  if (value.startsWith("~/")) return path.join(os.homedir(), value.slice(2));
-  return value;
 }
