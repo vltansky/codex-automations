@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fail } from "./errors.js";
+import { expandHome, fileExists } from "./utils.js";
 import { parseAutomationToml, stringifyAutomationToml } from "./toml.js";
 
 export const MANIFEST_NAME = "codex-automation.json";
@@ -246,7 +247,7 @@ export async function installPackage(pkg, options = {}, env = process.env) {
   const plan = prepareInstall(pkg, options, env);
   if (!plan.ok) return plan;
 
-  const exists = await fs.access(plan.target).then(() => true, () => false);
+  const exists = await fileExists(plan.target);
   if (exists && !(options.force || options.replace)) fail("id_conflict", `Automation already exists at ${plan.target}`);
   if (options.dryRun || options.view) {
     return {
@@ -327,11 +328,6 @@ function installPreview(plan, options) {
   }
 
   return preview;
-}
-
-function expandHome(value) {
-  if (typeof value === "string" && value.startsWith("~/")) return path.join(os.homedir(), value.slice(2));
-  return value;
 }
 
 function slugifyName(value) {

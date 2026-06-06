@@ -1,8 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { cancel, confirm, isCancel, text } from "@clack/prompts";
+import { confirm } from "@clack/prompts";
 import { upsertCollection } from "./config.js";
 import { fail } from "./errors.js";
+import { ask, ensureNotCancelled, promptWithDefault } from "./utils.js";
 import { discoverPackages } from "./source.js";
 
 export const README_BLOCK_START = "<!-- codex-automations:start -->";
@@ -139,20 +140,6 @@ function escapeCell(value) {
   return String(value).replace(/\|/g, "\\|").replace(/\n/g, " ");
 }
 
-async function promptWithDefault(label, defaultValue, io, options) {
-  if (options.yes) return defaultValue;
-  if (!io.ask) {
-    const answer = await text({
-      message: label,
-      defaultValue,
-      placeholder: defaultValue
-    });
-    return String(ensureNotCancelled(answer)).trim() || defaultValue;
-  }
-  const answer = await ask(`${label} [${defaultValue}]`, io);
-  return answer.trim() || defaultValue;
-}
-
 async function promptBoolean(label, defaultValue, io, options) {
   if (options.yes) return defaultValue;
   if (!io.ask) {
@@ -166,17 +153,4 @@ async function promptBoolean(label, defaultValue, io, options) {
   const answer = (await ask(`${label} [${suffix}]`, io)).trim();
   if (!answer) return defaultValue;
   return /^y(es)?$/i.test(answer);
-}
-
-async function ask(question, io) {
-  if (io.ask) return io.ask(question);
-  fail("confirmation_required", "Run in an interactive terminal");
-}
-
-function ensureNotCancelled(value) {
-  if (isCancel(value)) {
-    cancel("Cancelled");
-    fail("operation_cancelled", "Operation cancelled");
-  }
-  return value;
 }
